@@ -3,11 +3,10 @@ import request from './request'
 export interface LogStatus {
   status: string
   current_mb: number
-  max_mb: number
-  usage_percent: number
-  auto_cleanup_threshold_mb: number
+  rotate_interval_hours: number
+  backup_count: number
   file_count: number
-  files: { service: string; size_mb: number; path: string }[]
+  files: { name: string; size: number; size_mb: number; path: string; modified: number }[]
 }
 
 export interface LogSize {
@@ -15,16 +14,16 @@ export interface LogSize {
   total_mb: number
   max_mb: number
   usage_percent: number
-  files: { service: string; size_bytes: number; size_mb: number; path: string }[]
+  files: { name: string; size_bytes: number; size_mb: number; path: string }[]
 }
 
 export interface LogFile {
   name: string
   path: string
-  size_bytes: number
+  size: number
   size_mb: number
   service: string
-  modified_at: string
+  modified: number
 }
 
 export interface LogContent {
@@ -39,9 +38,15 @@ export interface LogContent {
 export interface LogSearchResult {
   service: string
   keyword: string
-  level: string
+  level_filter: string | null
   matches: { line: number; content: string; level: string; timestamp: string }[]
   total_matches: number
+}
+
+export interface LogErrorResult {
+  service: string
+  error_count: number
+  errors: string[]
 }
 
 export interface ClearResult {
@@ -69,7 +74,7 @@ export function searchLog(params: { keyword: string; level?: string; limit?: num
 }
 
 export function getLogErrors(params?: { lines?: number; service?: string }) {
-  return request.get<LogContent>('/sys/log/errors', { params })
+  return request.get<LogErrorResult>('/sys/log/errors', { params })
 }
 
 export function downloadLog(params?: { service?: string }) {

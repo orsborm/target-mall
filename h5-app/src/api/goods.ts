@@ -55,6 +55,10 @@ export function getGoodsDetailFull(id: number) {
   return request.get<GoodsDetailResponse>(`/goods/spu/${id}`)
 }
 
+export function getRecommendGoods(params?: { page_size?: number }) {
+  return request.get<GoodsItem[]>('/goods/spu/recommend', { params })
+}
+
 export function getCategoryTree() {
   return request.get<GoodsCategory[]>('/goods/category/tree')
 }

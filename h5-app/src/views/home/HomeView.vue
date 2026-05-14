@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { getGoodsList } from '@/api/goods'
+import { getGoodsList, getRecommendGoods } from '@/api/goods'
 import { getPageConfig } from '@/api/common'
 import { useAppStore } from '@/stores/app'
 import type { GoodsItem } from '@/api/goods'
@@ -21,14 +21,14 @@ const homeSubtitle = computed(() => appStore.getConfigValue('home_subtitle') || 
 async function loadHome() {
   loading.value = true; error.value = ''
   try {
-    const [configs, goods] = await Promise.all([
+    const [configs, recommend] = await Promise.all([
       getPageConfig('home'),
-      getGoodsList({ page: 1, page_size: 8 }),
+      getRecommendGoods({ page_size: 8 }).catch(() => [] as GoodsItem[]),
     ])
     appStore.setPageConfigs(configs as unknown as PageConfig[])
     const imgConfigs = configs.filter((c: { type: string }) => c.type === 'image')
     banners.value = imgConfigs.map((c: { value: string }) => c.value)
-    goodsList.value = goods.list
+    goodsList.value = recommend.length > 0 ? recommend : []
   } catch { error.value = '加载首页失败，请刷新重试' } finally {
     loading.value = false
   }
