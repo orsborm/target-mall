@@ -7,13 +7,13 @@ export interface GoodsItem {
 }
 
 export function getGoodsList(params?: any) {
-  return request.get<{ list: GoodsItem[]; total: number; page: number; page_size: number }>('/sys/goods/list', { params })
+  return request.get<{ list: GoodsItem[]; total: number; page: number; page_size: number }>('/goods/spu/list', { params })
 }
 export function updateGoodsStatus(id: number, status: number) {
-  return request.put(`/sys/goods/${id}/status`, { status })
+  return request.put(`/goods/spu/${id}/status`, { status })
 }
 export function updateGoods(id: number, data: Partial<GoodsItem>) {
-  return request.put(`/sys/goods/${id}`, data)
+  return request.put(`/goods/spu/${id}`, data)
 }
 export function getDashboardOverview() {
   return request.get<{ total_goods: number; total_users: number; total_orders: number; today_orders: number; pending_orders: number; total_revenue: number }>('/sys/dashboard/overview')

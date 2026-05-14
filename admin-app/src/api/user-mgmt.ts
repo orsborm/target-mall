@@ -6,8 +6,8 @@ export interface UserItem {
 }
 
 export function getUserList(params?: any) {
-  return request.get<{ list: UserItem[]; total: number; page: number; page_size: number }>('/sys/user/list', { params })
+  return request.get<{ list: UserItem[]; total: number; page: number; page_size: number }>('/user/list', { params })
 }
 export function updateUserStatus(id: number, status: number) {
-  return request.put(`/sys/user/${id}/status`, { status })
+  return request.put(`/user/${id}/status`, { status })
 }

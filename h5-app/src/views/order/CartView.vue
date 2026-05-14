@@ -36,9 +36,19 @@ async function onToggleAll() {
   try { await toggleSelectAll(!isAllSelected.value); items.value.forEach(i => i.checked = !isAllSelected.value) } catch { /* ignore */ }
 }
 async function onQtyChange(item: CartItem, qty: number | undefined) {
-  if (!qty || qty < 1) { item.quantity = 1; return }
-  if (item.stock > 0 && qty > item.stock) { ElMessage.warning(`库存不足，最多可购买 ${item.stock} 件`); item.quantity = item.stock; qty = item.stock }
-  try { await updateCartItem(item.id, { quantity: qty }); item.quantity = qty; cartStore.setCount(items.value.reduce((s, i) => s + i.quantity, 0)) } catch { /* ignore */ }
+  if (!qty || qty < 1) { qty = 1 }
+  if (item.stock > 0 && qty > item.stock) {
+    ElMessage.warning(`库存不足，最多可购买 ${item.stock} 件`)
+    qty = item.stock
+  }
+  const prevQty = item.quantity
+  item.quantity = qty
+  try {
+    await updateCartItem(item.id, { quantity: qty })
+    cartStore.setCount(items.value.reduce((s, i) => s + i.quantity, 0))
+  } catch {
+    item.quantity = prevQty
+  }
 }
 async function onDeleteItem(item: CartItem) {
   try { await ElMessageBox.confirm('确定删除该商品吗？', '提示', { type: 'warning' }) } catch { return }
@@ -95,8 +105,12 @@ onMounted(loadCart)
                 </div>
               </td>
               <td><span class="price price-sm">&yen;{{ formatPrice(item.price) }}</span></td>
-              <td><el-input-number v-model="item.quantity" :min="1" :max="item.stock || 99" size="small" @change="(v: number|undefined) => onQtyChange(item, v)" />
-              <div v-if="item.stock > 0 && item.quantity >= item.stock" style="color:#f56c6c;font-size:11px;margin-top:2px">已达库存上限</div></td>
+              <td>
+                <el-input-number :model-value="item.quantity" :min="1" :max="item.stock || 99" size="small" @update:model-value="(v: number|undefined) => onQtyChange(item, v)" />
+                <div v-if="item.stock > 0" style="font-size:11px;margin-top:2px" :style="{ color: item.quantity >= item.stock ? '#f56c6c' : '#909399' }">
+                  库存 {{ item.stock }} 件<span v-if="item.quantity >= item.stock">（已达上限）</span>
+                </div>
+              </td>
               <td><span class="price price-sm">&yen;{{ formatPrice(item.price * item.quantity) }}</span></td>
               <td><el-button type="danger" link @click="onDeleteItem(item)">删除</el-button></td>
             </tr>
