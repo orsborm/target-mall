@@ -1,0 +1,100 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Microsoft YaHei', 'PingFang SC', sans-serif;
+  color: #303133;
+  background: #f5f7fa;
+  line-height: 1.6;
+  min-width: 1024px;
+}
+
+a {
+  color: #409eff;
+  text-decoration: none;
+}
+a:hover {
+  color: #66b1ff;
+}
+
+/* Desktop container */
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c0c4cc;
+  border-radius: 3px;
+}
+
+/* Product card grid */
+.goods-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+@media (max-width: 1400px) {
+  .goods-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* Page header */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.page-header h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #303133;
+}
+
+/* Card hover */
+.card-hover {
+  transition: box-shadow 0.2s, transform 0.2s;
+  cursor: pointer;
+}
+.card-hover:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Price */
+.price {
+  color: #f56c6c;
+  font-weight: 700;
+}
+.price-lg {
+  font-size: 22px;
+}
+.price-md {
+  font-size: 17px;
+}
+.price-sm {
+  font-size: 14px;
+}
+
+/* Text ellipsis */
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
