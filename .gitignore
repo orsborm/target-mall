@@ -43,3 +43,4 @@ Desktop.ini
 
 # TypeScript
 *.tsbuildinfo
+auth_service_backup.py
