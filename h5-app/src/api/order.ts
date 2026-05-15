@@ -59,7 +59,7 @@ export interface OrderListParams {
 }
 
 export function createOrder(data: CreateOrderParams) {
-  return request.post<{ order_no: string; pay_url?: string }>('/order/orders/create', data)
+  return request.post<{ order_id: number; order_no: string; pay_url?: string }>('/order/orders/create', data)
 }
 
 export function getOrderList(params?: OrderListParams) {
@@ -78,10 +78,14 @@ export function confirmReceipt(id: number) {
   return request.put<null>(`/order/orders/${id}/confirm`)
 }
 
-export function payOrder(order_no: string) {
-  return request.post<{ pay_url: string }>('/order/pay/', { order_no })
+export function directBuy(data: { sku_id: number; quantity: number; address_id: number; remark?: string }) {
+  return request.post<{ order_id: number; order_no: string }>('/order/orders/direct-buy', data)
+}
+
+export function payOrder(order_id: number, pay_method?: string) {
+  return request.post<{ pay_no: string; paid: boolean }>('/order/pay/', { order_id, pay_method: pay_method || 'balance' })
 }
 
 export function requestRefund(id: number, reason?: string) {
-  return request.put<null>(`/order/orders/${id}/refund`, { reason })
+  return request.post<{ refund_no: string }>(`/order/orders/${id}/refund`, { reason })
 }

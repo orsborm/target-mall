@@ -26,5 +26,5 @@ export function markAsRead(id: number) {
 }
 
 export function markAllAsRead() {
-  return request.post<null>('/msg/notifications/read-all')
+  return request.put<null>('/msg/notifications/read-all')
 }

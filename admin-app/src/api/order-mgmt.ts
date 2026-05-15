@@ -26,7 +26,7 @@ export const ORDER_STATUS_MAP: Record<string, { text: string; type: string }> = 
 }
 
 export function getOrderList(params?: { page?: number; page_size?: number; status?: string; keyword?: string }) {
-  return request.get<{ list: AdminOrder[]; total: number; page: number; page_size: number }>('/order/orders/list', { params })
+  return request.get<{ list: AdminOrder[]; total: number; page: number; page_size: number }>('/order/admin/orders/list', { params })
 }
 export function processRefund(orderId: number, action: 'approve' | 'reject', reason?: string) {
   return request.put(`/order/admin/orders/${orderId}/refund`, { action, reason })

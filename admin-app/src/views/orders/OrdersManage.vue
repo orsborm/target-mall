@@ -41,9 +41,13 @@ async function handleRemark() {
   remarkLoading.value = true
   try {
     await updateRemark(remarkForm.value.id, remarkForm.value.remark.trim())
+    const order = orders.value.find(o => o.id === remarkForm.value.id)
+    if (order) order.remark = remarkForm.value.remark.trim()
+    if (currentOrder.value?.id === remarkForm.value.id) {
+      currentOrder.value.remark = remarkForm.value.remark.trim()
+    }
     ElMessage.success('备注已更新')
     remarkVisible.value = false
-    loadOrders()
   } catch { ElMessage.error('更新失败') } finally { remarkLoading.value = false }
 }
 
@@ -65,9 +69,20 @@ async function handleShipping() {
   shippingLoading.value = true
   try {
     await updateShipping(shippingOrderId.value, shippingForm.value.company.trim(), shippingForm.value.tracking_no.trim())
+    // 直接更新本地状态
+    const order = orders.value.find(o => o.id === shippingOrderId.value)
+    if (order) {
+      order.status = 'shipped'
+      order.shipping_company = shippingForm.value.company.trim()
+      order.tracking_no = shippingForm.value.tracking_no.trim()
+    }
+    if (currentOrder.value?.id === shippingOrderId.value) {
+      currentOrder.value.status = 'shipped'
+      currentOrder.value.shipping_company = shippingForm.value.company.trim()
+      currentOrder.value.tracking_no = shippingForm.value.tracking_no.trim()
+    }
     ElMessage.success('发货成功')
     shippingVisible.value = false
-    loadOrders()
   } catch { ElMessage.error('发货失败') } finally { shippingLoading.value = false }
 }
 
@@ -78,9 +93,18 @@ async function handleRefund(action: 'approve' | 'reject') {
   refunding.value = true
   try {
     await processRefund(currentOrder.value.id, action)
+    const newStatus = action === 'approve' ? 'refunded' : 'completed'
+    // 更新本地状态
+    currentOrder.value.status = newStatus
+    if (currentOrder.value.refund) {
+      currentOrder.value.refund.status = action === 'approve' ? 1 : -1
+    }
+    const order = orders.value.find(o => o.id === currentOrder.value!.id)
+    if (order) {
+      order.status = newStatus
+      if (order.refund) order.refund.status = action === 'approve' ? 1 : -1
+    }
     ElMessage.success(`退款已${label}`)
-    currentOrder.value.status = action === 'approve' ? 'refunded' : 'completed'
-    loadOrders()
   } catch { ElMessage.error('操作失败') } finally { refunding.value = false }
 }
 

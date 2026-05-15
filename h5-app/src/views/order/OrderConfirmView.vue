@@ -12,7 +12,7 @@ import { Plus } from '@element-plus/icons-vue'
 const route = useRoute()
 const router = useRouter()
 
-interface ConfirmItem { goods_id: number; quantity: number; price: number; goods_title: string; goods_image: string }
+interface ConfirmItem { sku_id: number; spu_id: number; quantity: number; price: number; goods_title: string; goods_image: string }
 const items = ref<ConfirmItem[]>([])
 const addresses = ref<Address[]>([])
 const selectedAddress = ref<Address | null>(null)
@@ -36,7 +36,15 @@ async function loadAddresses() {
 
 onMounted(async () => {
   try { items.value = JSON.parse(sessionStorage.getItem('checkout_items') || '[]') } catch { items.value = [] }
-  if (items.value.length === 0) { ElMessage.error('订单数据异常'); router.back(); return }
+  if (items.value.length === 0) { ElMessage.error('订单数据异常，请重新选择商品'); router.back(); return }
+  // 兼容旧 session 数据：确保有 sku_id
+  if (items.value.some(i => !i.sku_id)) {
+    ElMessage.warning('订单数据已过期，请重新选择商品结算')
+    sessionStorage.removeItem('checkout_items')
+    sessionStorage.removeItem('checkout_cart_ids')
+    router.back()
+    return
+  }
   loadAddresses()
 })
 
@@ -57,7 +65,7 @@ async function handleSubmit() {
     ElMessage.success('下单成功')
     sessionStorage.removeItem('checkout_items')
     sessionStorage.removeItem('checkout_cart_ids')
-    router.replace(`/order/${res.order_no}`)
+    router.replace(`/order/${res.order_id}`)
   } catch { ElMessage.error('下单失败，请重试') } finally { submitting.value = false }
 }
 </script>
@@ -95,7 +103,7 @@ async function handleSubmit() {
           <h3>商品信息</h3>
           <table class="confirm-table">
             <tbody>
-              <tr v-for="item in items" :key="item.goods_id">
+              <tr v-for="item in items" :key="item.sku_id">
                 <td style="width:80px"><SafeImage :src="item.goods_image" :alt="item.goods_title" width="70" height="70" fit="cover" /></td>
                 <td>{{ item.goods_title }}</td>
                 <td style="width:100px"><span class="price">&yen;{{ formatPrice(item.price) }}</span></td>

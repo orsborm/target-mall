@@ -18,7 +18,8 @@ const actionLoading = ref(false)
 async function loadOrder() {
   error.value = ''; loading.value = true
   try {
-    const id = Number(route.params.id)
+    const id = parseInt(route.params.id as string, 10)
+    if (!id || isNaN(id)) { error.value = '订单号无效'; loading.value = false; return }
     order.value = await getOrderDetail(id)
   } catch {
     error.value = '加载订单失败，请重试'
@@ -40,7 +41,7 @@ async function handleConfirm() {
 async function handlePay() {
   if (!order.value) return
   actionLoading.value = true
-  try { const res = await payOrder(order.value.order_no); if (res.pay_url) { ElMessage.success('模拟支付成功'); order.value.status = 'paid' } } catch { /* ignore */ } finally { actionLoading.value = false }
+  try { const res = await payOrder(order.value.id); if (res.paid) { ElMessage.success('支付成功'); order.value.status = 'paid' } } catch { /* ignore */ } finally { actionLoading.value = false }
 }
 async function handleRefund() {
   if (!order.value) return

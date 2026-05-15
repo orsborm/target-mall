@@ -15,6 +15,21 @@ export function updateGoodsStatus(id: number, status: number) {
 export function updateGoods(id: number, data: Partial<GoodsItem>) {
   return request.put(`/goods/spu/${id}`, data)
 }
+export interface SkuInfo {
+  id: number; sku_code: string; price: number; stock: number
+  main_image: string; specs: Record<string,string>
+}
+export interface GoodsDetail {
+  spu: GoodsItem
+  skus: SkuInfo[]
+  specs: { name: string; values: { value: string }[] }[]
+}
+export function getGoodsDetail(spuId: number) {
+  return request.get<GoodsDetail>(`/goods/spu/${spuId}`)
+}
+export function updateSkus(spuId: number, skus: { id: number; main_image?: string }[]) {
+  return request.put(`/goods/spu/${spuId}/skus`, { skus })
+}
 export function getDashboardOverview() {
   return request.get<{ total_goods: number; total_users: number; total_orders: number; today_orders: number; pending_orders: number; total_revenue: number }>('/sys/dashboard/overview')
 }

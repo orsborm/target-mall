@@ -27,9 +27,9 @@ onMounted(async () => {
 
 <template>
   <AppLayout>
-    <router-view v-slot="{ Component }">
+    <router-view v-slot="{ Component, route: r }">
       <transition name="fade" mode="out-in">
-        <component :is="Component" />
+        <component :is="Component" :key="r.fullPath" />
       </transition>
     </router-view>
   </AppLayout>

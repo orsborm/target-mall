@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
-import { getGoodsList } from '@/api/goods-mgmt'
-import request from '@/api/request'
+import { getDashboardOverview } from '@/api/goods-mgmt'
 import { formatPrice } from '@/utils/format'
 import { Goods, User, Document, ShoppingCart } from '@element-plus/icons-vue'
 
@@ -17,19 +16,17 @@ const stats = ref({
 const loading = ref(true)
 
 onMounted(async () => {
-  const [goodsR, orderR] = await Promise.allSettled([
-    getGoodsList({ page: 1, page_size: 1 }),
-    request.get('/order/orders/list', { params: { page: 1, page_size: 1 } }),
-  ])
-
-  if (goodsR.status === 'fulfilled') {
-    stats.value.total_goods = goodsR.value.total
-  }
-  if (orderR.status === 'fulfilled') {
-    stats.value.total_orders = (orderR.value as any).total
-  }
-  // total_users / today_orders / pending_orders / total_revenue 需要后端聚合接口
-  loading.value = false
+  try {
+    const data = await getDashboardOverview()
+    stats.value = {
+      total_goods: (data as any).total_goods ?? null,
+      total_users: (data as any).total_users ?? null,
+      total_orders: (data as any).total_orders ?? null,
+      today_orders: (data as any).today_orders ?? null,
+      pending_orders: (data as any).pending_orders ?? null,
+      total_revenue: (data as any).total_revenue ?? null,
+    }
+  } catch { /* 加载失败保持 '-' */ } finally { loading.value = false }
 })
 </script>
 

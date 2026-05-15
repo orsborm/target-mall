@@ -61,7 +61,7 @@ async function onClearInvalid() {
 }
 function onCheckout() {
   if (selectedItems.value.length === 0) { ElMessage.warning('请选择商品'); return }
-  const orderItems = selectedItems.value.map(i => ({ goods_id: i.spu_id, quantity: i.quantity, price: i.price, goods_title: i.spu_name, goods_image: i.main_image }))
+  const orderItems = selectedItems.value.map(i => ({ sku_id: i.sku_id, spu_id: i.spu_id, quantity: i.quantity, price: i.price, goods_title: i.spu_name, goods_image: i.main_image }))
   const cartItemIds = selectedItems.value.map(i => i.id)
   sessionStorage.setItem('checkout_items', JSON.stringify(orderItems))
   sessionStorage.setItem('checkout_cart_ids', JSON.stringify(cartItemIds))
