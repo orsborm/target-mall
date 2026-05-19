@@ -26,7 +26,7 @@ const skuLoading = ref(false)
 
 // ---- create state ----
 const createVisible = ref(false)
-interface CreateSkuEntry { sku_code: string; price: number; stock: number; main_image: string; specs: string }
+interface CreateSkuEntry { _key?: number; sku_code: string; price: number; stock: number; main_image: string; specs: string }
 const creatingGoods = reactive({
   spu_code: '', name: '', subtitle: '', brand: '', category_id: 1,
   main_image: '', min_price: 0.01, max_price: 0.01, sales: 0, status: 1,
@@ -77,7 +77,7 @@ function removeCreateImage(idx: number) { creatingImages.value.splice(idx, 1) }
 function setAsCreateMain(url: string) { creatingGoods.main_image = url }
 
 function addCreateSku() {
-  creatingSkus.value.push({ sku_code: '', price: 0.01, stock: 0, main_image: '', specs: '' })
+  creatingSkus.value.push({ sku_code: '', price: 0.01, stock: 0, main_image: '', specs: '', _key: Date.now() + Math.random() })
 }
 function removeCreateSku(idx: number) { creatingSkus.value.splice(idx, 1) }
 
@@ -148,7 +148,12 @@ async function toggleStatus(row: GoodsItem) {
 }
 
 async function openEdit(row: GoodsItemExt) {
-  editingId.value = row.id
+  // Store targetId locally to prevent a race: if the user clicks Edit on
+  // row A then quickly clicks row B before A's getGoodsDetail resolves,
+  // A's SKU data would overwrite B's form.  Comparing against the captured
+  // targetId after the await discards stale responses.
+  const targetId = row.id
+  editingId.value = targetId
   editingGoods.name = row.name
   editingGoods.subtitle = row.subtitle
   editingGoods.brand = row.brand
@@ -161,12 +166,13 @@ async function openEdit(row: GoodsItemExt) {
   newImageUrl.value = ''
   editingSkus.value = []
   editVisible.value = true
-  // 异步加载 SKU 数据
+  // Async load SKU data
   skuLoading.value = true
   try {
-    const detail = await getGoodsDetail(row.id)
+    const detail = await getGoodsDetail(targetId)
+    if (editingId.value !== targetId) return
     editingSkus.value = (detail.skus || []).map(s => ({ ...s, price: +(s.price / 100).toFixed(2) }))
-  } catch { /* SKU 加载失败不影响编辑 */ } finally { skuLoading.value = false }
+  } catch { /* SKU load failed, editing continues */ } finally { if (editingId.value === targetId) skuLoading.value = false }
 }
 
 function addImage() {
@@ -440,7 +446,7 @@ onMounted(() => { loadCategories(); loadGoods() })
         <el-form-item label="SKU配置">
           <div style="width:100%">
             <div v-if="creatingSkus.length === 0" style="color:#999;font-size:13px;margin-bottom:8px">暂未添加 SKU，可创建后编辑</div>
-            <div v-for="(sku, idx) in creatingSkus" :key="idx" style="margin-bottom:12px;padding:10px;background:#fafafa;border-radius:6px">
+            <div v-for="(sku, idx) in creatingSkus" :key="sku._key || idx" style="margin-bottom:12px;padding:10px;background:#fafafa;border-radius:6px">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
                 <span style="font-size:12px;color:#666;font-weight:500">SKU #{{ idx + 1 }}</span>
                 <el-button link type="danger" size="small" :icon="Delete" @click="removeCreateSku(idx)">删除</el-button>

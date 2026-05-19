@@ -28,6 +28,13 @@ export const useAdminStore = defineStore('admin', () => {
     setItem('admin_refresh_token', refresh_token)
   }
 
+  // Persist only userInfo — used by App.vue to restore profile after
+  // page refresh, when token already exists in localStorage but the
+  // full user object was never serialized.
+  function setUserInfo(info: AdminUserInfo) {
+    userInfo.value = info
+  }
+
   function setToken(tk: string) {
     token.value = tk
     setItem('admin_token', tk)
@@ -41,5 +48,5 @@ export const useAdminStore = defineStore('admin', () => {
     removeItem('admin_refresh_token')
   }
 
-  return { token, refreshToken, userInfo, isLoggedIn, username, roleCode, setAuth, setToken, logout }
+  return { token, refreshToken, userInfo, isLoggedIn, username, roleCode, setAuth, setUserInfo, setToken, logout }
 })

@@ -84,11 +84,11 @@ service.interceptors.response.use(
       const userStore = useUserStore()
       userStore.logout()
       router.push('/login')
-      ElMessage.error('登录已过期，请重新登录')
+      ElMessage.error(deepFixEncoding(res.msg) || '登录已过期，请重新登录')
       return Promise.reject(new Error(res.msg))
     }
 
-    ElMessage.error(res.msg || '请求失败')
+    ElMessage.error(deepFixEncoding(res.msg) || '请求失败')
     return Promise.reject(new Error(res.msg))
   },
   async (error) => {
@@ -114,11 +114,11 @@ service.interceptors.response.use(
       const newToken = await tryRefreshToken()
       if (newToken) {
         const userStore = useUserStore()
-        if (userStore.userInfo) {
-          userStore.setAuth(newToken, userStore.refreshToken, userStore.userInfo)
-        } else {
-          userStore.setToken(newToken)
-        }
+        // Always use setAuth (not setToken) to persist BOTH tokens to
+        // localStorage, so the refresh token survives a page reload.
+        // Previously the else-branch only called setToken, leaving the
+        // refreshToken stranded in memory.
+        userStore.setAuth(newToken, userStore.refreshToken, userStore.userInfo!)
         onRefreshed(newToken)
         isRefreshing = false
         originalRequest.headers.Authorization = `Bearer ${newToken}`

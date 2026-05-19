@@ -77,11 +77,13 @@ service.interceptors.response.use(
       const store = useAdminStore()
       store.logout()
       router.push('/login')
-      ElMessage.error('登录已过期，请重新登录')
+      // deepFixEncoding applied to error messages too — backend error
+      // responses may also contain double-encoded UTF-8 text.
+      ElMessage.error(deepFixEncoding(res.msg) || '登录已过期，请重新登录')
       return Promise.reject(new Error(res.msg))
     }
 
-    ElMessage.error(res.msg || '请求失败')
+    ElMessage.error(deepFixEncoding(res.msg) || '请求失败')
     return Promise.reject(new Error(res.msg))
   },
   async (error) => {

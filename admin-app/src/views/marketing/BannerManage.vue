@@ -32,6 +32,8 @@ function openEdit(row: PageConfig) {
 async function handleSave() {
   if (!form.value.value.trim()) { ElMessage.warning('请输入图片URL或文本内容'); return }
   const link = form.value.link.trim()
+  // Only allow internal paths (/) or absolute HTTP(S) URLs to prevent
+  // open-redirect phishing via the banner click target.
   if (link && !link.startsWith('/') && !link.startsWith('http')) { ElMessage.warning('跳转链接需以 / 或 http 开头'); return }
   saving.value = true
   try {
@@ -39,7 +41,7 @@ async function handleSave() {
       await updateBanner(editingId.value, form.value)
       ElMessage.success('更新成功')
     } else {
-      await createBanner({ ...form.value, page_key: 'home' } as any)
+      await createBanner({ ...form.value, page_key: 'home' })
       ElMessage.success('添加成功')
     }
     showDialog.value = false; load()
@@ -54,15 +56,17 @@ async function handleDelete(row: PageConfig) {
 async function moveUp(idx: number) {
   if (idx <= 0) return
   const a = configs.value[idx]; const b = configs.value[idx - 1]
-  // Swap locally first for instant feedback, then persist
   ;[configs.value[idx], configs.value[idx - 1]] = [b, a]
   try {
     await Promise.all([
       updateBanner(a.id, { sort_order: b.sort_order }),
       updateBanner(b.id, { sort_order: a.sort_order }),
     ])
+    // Reload from server after successful reorder so the local list
+    // matches the source of truth — prevents drift if one of the two
+    // API calls silently failed on the server side.
+    load()
   } catch {
-    // Revert on failure
     ;[configs.value[idx], configs.value[idx - 1]] = [a, b]
     ElMessage.error('排序更新失败，请重试')
   }
@@ -77,6 +81,8 @@ async function moveDown(idx: number) {
       updateBanner(a.id, { sort_order: b.sort_order }),
       updateBanner(b.id, { sort_order: a.sort_order }),
     ])
+    // Reload from server — see moveUp for rationale.
+    load()
   } catch {
     ;[configs.value[idx], configs.value[idx + 1]] = [a, b]
     ElMessage.error('排序更新失败，请重试')
@@ -115,7 +121,7 @@ onMounted(load)
       <el-table-column prop="value" label="值(URL/文本)" min-width="180" show-overflow-tooltip />
       <el-table-column prop="link" label="跳转链接" width="140" show-overflow-tooltip>
         <template #default="{ row }">
-          <span v-if="(row as any).link" style="color:#409eff;font-size:12px">{{ (row as any).link }}</span>
+          <span v-if="row.link" style="color:#409eff;font-size:12px">{{ row.link }}</span>
           <span v-else style="color:#ccc;font-size:11px">未设置</span>
         </template>
       </el-table-column>

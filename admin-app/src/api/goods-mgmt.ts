@@ -27,7 +27,10 @@ export interface GoodsDetail {
 export function getGoodsDetail(spuId: number) {
   return request.get<GoodsDetail>(`/goods/spu/${spuId}`)
 }
-export function updateSkus(spuId: number, skus: { id: number; main_image?: string }[]) {
+// Added `price?: number` to prevent silent data loss — the GoodsManage view
+// sends updated SKU prices but the old type definition stripped them, causing
+// price edits to be silently discarded by the API layer.
+export function updateSkus(spuId: number, skus: { id: number; main_image?: string; price?: number }[]) {
   return request.put(`/goods/spu/${spuId}/skus`, { skus })
 }
 export interface CreateGoodsBody {

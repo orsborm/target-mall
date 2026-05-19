@@ -24,6 +24,10 @@ const mainImage = ref('')
 const quantity = ref(1)
 const addingCart = ref(false)
 const currentSku = ref<GoodsDetailResponse['skus'][0] | null>(null)
+// Monotonic request counter prevents stale async responses from
+// overwriting fresher data when the user rapidly navigates between
+// products (e.g. /goods/1 → /goods/2).
+let loadRequestId = 0
 
 const selectedPrice = computed(() => currentSku.value?.price ?? goods.value?.min_price ?? 0)
 const selectedStock = computed(() => currentSku.value?.stock ?? 0)
@@ -39,15 +43,26 @@ function selectThumb(img: string) { mainImage.value = img }
 
 async function loadDetail() {
   error.value = ''; loading.value = true
+  const reqId = ++loadRequestId
   try {
     const id = Number(route.params.id)
     if (isNaN(id) || id <= 0) { error.value = '无效的商品ID'; loading.value = false; return }
-    detail.value = await getGoodsDetailFull(id)
-    if (detail.value?.spu) {
-      mainImage.value = detail.value.spu.main_image
-      if (detail.value.skus?.length) selectSku(detail.value.skus[0])
+    const data = await getGoodsDetailFull(id)
+    if (reqId !== loadRequestId) return
+    detail.value = data
+    if (data?.spu) {
+      mainImage.value = data.spu.main_image
+      if (data.skus?.length) selectSku(data.skus[0])
     }
-  } catch { error.value = '加载商品失败，请重试' } finally { loading.value = false }
+    // Load favorite status from server so returning users see the correct
+    // star state — previously isFav always started as false on every visit.
+    const uid = userStore.userInfo?.id
+    if (uid) {
+      import('@/api/goods').then(({ getFavorites }) => {
+        getFavorites(uid).then(ids => { isFav.value = ids.includes(id) }).catch(() => {})
+      })
+    }
+  } catch { if (reqId === loadRequestId) error.value = '加载商品失败，请重试' } finally { if (reqId === loadRequestId) loading.value = false }
 }
 // ---- Favorite state ----
 const isFav = ref(false)
@@ -62,7 +77,7 @@ async function toggleFav() {
     const res = await toggleFavoriteApi(uid, goods.value.id)
     isFav.value = res.favorited
     ElMessage.success(res.favorited ? '已收藏' : '已取消收藏')
-  } catch { /* ignore */ } finally { favLoading.value = false }
+  } catch { ElMessage.error('操作失败，请重试') } finally { favLoading.value = false }
 }
 
 // ---- Reviews state ----
@@ -84,7 +99,7 @@ async function loadComments(reset = false) {
     const res = await getComments(goods.value.id, { page: commentPage.value, page_size: 10 })
     comments.value = reset ? res.list : [...comments.value, ...res.list]
     commentTotal.value = res.total; avgRating.value = res.avgRating
-  } catch { /* ignore */ } finally { commentLoading.value = false }
+  } catch { if (reqId === loadRequestId) { comments.value = reset ? [] : comments.value } } finally { if (reqId === loadRequestId) commentLoading.value = false }
 }
 
 async function submitReview() {

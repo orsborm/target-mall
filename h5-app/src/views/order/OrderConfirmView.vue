@@ -49,8 +49,11 @@ async function loadAddresses() {
 
 async function loadCoupons() {
   couponLoading.value = true; couponError.value = ''
+  // Bail early if userInfo hasn't loaded yet — previously fell through
+  // with user_id='' (|| ''), which the mock server interprets as user_id=1.
+  if (!userStore.userInfo?.id) { couponLoading.value = false; return }
   try {
-    const res: any = await request.get(`/user/coupons?user_id=${userStore.userInfo?.id || ''}`)
+    const res: any = await request.get(`/user/coupons?user_id=${userStore.userInfo.id}`)
     coupons.value = (Array.isArray(res) ? res : []).filter((uc: UserCoupon) => uc.status === 'unused')
   } catch { couponError.value = '加载优惠券失败' } finally { couponLoading.value = false }
 }

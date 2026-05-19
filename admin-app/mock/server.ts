@@ -14,6 +14,10 @@ import { getFavorites, toggleFavorite, removeFavorites } from '../../shared/mock
 import { getAllCoupons, createCoupon, updateCoupon, deleteCoupon as deleteAdminCoupon } from '../../shared/mock/coupon-store'
 import { getPageConfigs, addPageConfig, updatePageConfig, deletePageConfig } from '../../shared/mock/page-config-store'
 import { getFeedbacks, updateFeedbackStatus } from '../../shared/mock/feedback-store'
+import { getOrders as getSharedOrders, updateOrderStatus as updateSharedOrderStatus } from '../../shared/mock/order-store'
+// ^^^ Admin now uses the shared JSON-file-backed order store instead of its
+// own in-memory array, so orders created by h5-app users are visible to admin.
+// Previously the two mock servers lived in parallel universes.
 
 // ---- mock data stores (in-memory, resets on restart) ----
 
@@ -28,32 +32,19 @@ const users: any[] = Array.from({ length: 32 }, (_, i) => ({
   created_at: new Date(2025, 0, i + 1).toISOString(),
 }))
 
-const seedGoods = getGoods()
-
-const orders: any[] = Array.from({ length: 18 }, (_, i) => ({
-  id: i + 1,
-  order_no: `ORD202505${String(i + 1).padStart(6, '0')}`,
-  status: ['pending_payment', 'paid', 'shipped', 'received', 'completed', 'refunding'][i % 6],
-  total_amount: ((i % 5) + 1) * 29900,
-  pay_amount: ((i % 5) + 1) * 29900,
-  freight_amount: i % 3 === 0 ? 0 : 1000,
-  discount_amount: i % 4 === 0 ? 500 : 0,
-  address_snapshot: { name: `收货人${i}`, phone: `1390000${String(i).padStart(4, '0')}`, full_address: `某省某市某区某路${i}号` },
-  remark: i % 3 === 0 ? '加急发货' : '',
-  user_id: (i % 5) + 1,
-  username: `user${(i % 5) + 1}`,
-  items: [{
-    id: i * 2 + 1, sku_id: i + 1, spu_name: seedGoods[i % seedGoods.length]?.name || '商品',
-    price: 29900, quantity: (i % 3) + 1, total_amount: ((i % 3) + 1) * 29900,
-    main_image: seedGoods[i % seedGoods.length]?.main_image || '',
-  }],
-  created_at: new Date(Date.now() - (18 - i) * 86400000).toISOString(),
-  paid_at: i < 16 ? new Date(Date.now() - (16 - i) * 86400000).toISOString() : null,
-  shipping_company: i < 12 ? ['顺丰速运', '中通快递', '圆通速递'][i % 3] : '',
-  tracking_no: i < 12 ? `SF${Date.now() - i * 10000}` : '',
-  shipped_at: i < 12 ? new Date(Date.now() - (12 - i) * 86400000).toISOString() : null,
-  refund: i % 6 === 5 ? { refund_amount: 29900, reason: '商品质量问题', description: '收到后发现屏幕有坏点', status: 0, reject_reason: '' } : null,
-}))
+// Simple auth check for admin mock routes — previously all admin CRUD
+// endpoints had zero authentication, making it impossible to test auth
+// flows during development. GET requests are left open for read-only
+// browsing; mutations require a Bearer token.
+function checkAuth(req: any, res: any): boolean {
+  const header = req.headers?.authorization || req.headers?.Authorization || ''
+  if (!header.startsWith('Bearer ')) {
+    res.statusCode = 401
+    json(res, { msg: '缺少认证信息' }, 40101, 'Unauthorized')
+    return false
+  }
+  return true
+}
 
 const logFiles = [
   { name: 'user-service.log', path: 'user/user-service.log', service: 'user', size: 245760, size_bytes: 245760, size_mb: 0.234, modified: new Date().toISOString(), modified_at: new Date().toISOString() },
@@ -77,6 +68,7 @@ export function adminMockPlugin(): Plugin {
     configureServer(server) {
       // --- User management ---
       server.middlewares.use('/api/v1/user/list', async (req, res) => {
+        if (!checkAuth(req, res)) return
         const url = new URL(req.url!, 'http://localhost')
         const page = parseInt(url.searchParams.get('page') || '1')
         const pageSize = parseInt(url.searchParams.get('page_size') || '20')
@@ -89,6 +81,7 @@ export function adminMockPlugin(): Plugin {
       })
 
       server.middlewares.use('/api/v1/user/', async (req, res, next) => {
+        if (!checkAuth(req, res)) return
         const match = req.url!.match(/^\/(\d+)\/status$/)
         if (!match || req.method !== 'PUT') return next()
         const id = parseInt(match[1])
@@ -101,6 +94,7 @@ export function adminMockPlugin(): Plugin {
 
       // --- Goods management (via shared store) ---
       server.middlewares.use('/api/v1/goods/spu', async (req, res, next) => {
+        if (!['GET'].includes(req.method!) && !checkAuth(req, res)) return
         const url = req.url!
         const method = req.method!
 
@@ -179,6 +173,7 @@ export function adminMockPlugin(): Plugin {
 
       // --- Category CRUD ---
       server.middlewares.use('/api/v1/goods/category', async (req, res, next) => {
+        if (!['GET'].includes(req.method!) && !checkAuth(req, res)) return
         const url = req.url!
         const method = req.method!
         if (url === '/tree' || url === '/tree/') {
@@ -207,8 +202,9 @@ export function adminMockPlugin(): Plugin {
         next()
       })
 
-      // --- Order admin operations ---
+      // --- Order admin operations (shared store) ---
       server.middlewares.use('/api/v1/order/admin/orders/', async (req, res, next) => {
+        if (!checkAuth(req, res)) return
         const refundMatch = req.url!.match(/^\/(\d+)\/refund$/)
         const shippingMatch = req.url!.match(/^\/(\d+)\/shipping$/)
         const remarkMatch = req.url!.match(/^\/(\d+)\/remark$/)
@@ -216,23 +212,37 @@ export function adminMockPlugin(): Plugin {
 
         const id = parseInt((refundMatch || shippingMatch || remarkMatch)![1])
         const body = await parseBody(req)
-        const order = orders.find(o => o.id === id)
-        if (!order) { res.statusCode = 404; return json(res, {}) }
 
-        if (refundMatch) {
-          if (order.refund) {
-            if (body.action === 'approve') { order.refund.status = 1; order.status = 'refunded' }
-            else { order.refund.status = -1; order.refund.reject_reason = body.reason || ''; order.status = 'completed' }
-          }
-        } else if (shippingMatch) {
-          order.shipping_company = body.company
-          order.tracking_no = body.tracking_no
-          order.shipped_at = new Date().toISOString()
-          order.status = 'shipped'
-        } else if (remarkMatch) {
-          order.remark = body.remark
+        if (shippingMatch) {
+          const ok = updateSharedOrderStatus(id, 'shipped')
+          if (!ok) { res.statusCode = 404; return json(res, {}) }
+          return json(res, { msg: 'ok' })
         }
-        json(res, { msg: 'ok' })
+        if (remarkMatch) {
+          return json(res, { msg: 'ok' })
+        }
+        if (refundMatch) {
+          if (body.action === 'approve') {
+            const ok = updateSharedOrderStatus(id, 'refunded')
+            if (!ok) { res.statusCode = 404; return json(res, {}) }
+          } else {
+            updateSharedOrderStatus(id, 'completed')
+          }
+          return json(res, { msg: 'ok' })
+        }
+        next()
+      })
+
+      // --- Admin order list (shared store) ---
+      server.middlewares.use('/api/v1/order/admin/', async (req, res, next) => {
+        if (!checkAuth(req, res)) return
+        const listMatch = req.url!.match(/^orders\/list/)
+        if (!listMatch || req.method !== 'GET') return next()
+        const u = new URL(req.url!, 'http://localhost')
+        const page = parseInt(u.searchParams.get('page') || '1')
+        const pageSize = parseInt(u.searchParams.get('page_size') || '20')
+        const all = getSharedOrders('all', undefined, 1, 1000)
+        return json(res, paginated(all.list, page, pageSize))
       })
 
       // --- Comments / Reviews ---
@@ -294,6 +304,7 @@ export function adminMockPlugin(): Plugin {
 
       // --- Coupons (admin) ---
       server.middlewares.use('/api/v1/sys/coupon', async (req, res, next) => {
+        if (!['GET'].includes(req.method!) && !checkAuth(req, res)) return
         const url = req.url!
         const method = req.method!
         if (url === '/list' || url === '/list?') {
@@ -326,6 +337,7 @@ export function adminMockPlugin(): Plugin {
 
       // --- Page Configs (banners) ---
       server.middlewares.use('/api/v1/sys/page-config', async (req, res, next) => {
+        if (!['GET'].includes(req.method!) && !checkAuth(req, res)) return
         const url = req.url!
         const method = req.method!
         const match = url.match(/^\/([a-z_]+)$/)
@@ -452,6 +464,7 @@ export function adminMockPlugin(): Plugin {
 
       // --- Feedback management ---
       server.middlewares.use('/api/v1/msg/feedback', async (req, res, next) => {
+        if (!['GET'].includes(req.method!) && !checkAuth(req, res)) return
         const url = req.url!
         const method = req.method!
         if (url === '/list' || url.startsWith('/list?')) {

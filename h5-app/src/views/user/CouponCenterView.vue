@@ -21,11 +21,13 @@ const loading = ref(false)
 const claiming = ref(0)
 
 async function loadData() {
+  // Guard: avoid passing user_id='' to the API when userInfo isn't loaded yet.
+  if (!userStore.userInfo?.id) { loading.value = false; return }
   loading.value = true
   try {
     const [avail, mine] = await Promise.all([
       request.get<CouponTemplate[]>('/sys/coupon/available'),
-      request.get<UserCoupon[]>(`/user/coupons?user_id=${userStore.userInfo?.id || ''}`),
+      request.get<UserCoupon[]>(`/user/coupons?user_id=${userStore.userInfo.id}`),
     ])
     available.value = avail as any; myCoupons.value = mine as any
   } catch { ElMessage.error('加载优惠券失败') } finally { loading.value = false }

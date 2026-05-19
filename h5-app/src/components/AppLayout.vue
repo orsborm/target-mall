@@ -21,7 +21,9 @@ const isLoggedIn = computed(() => userStore.isLoggedIn)
 const userInfo = computed(() => userStore.userInfo)
 const activeNav = computed(() => {
   if (route.path.startsWith('/goods')) return 'goods'
-  if (route.path.startsWith('/coupon')) return 'coupon'
+  // Exact match on /user/coupons BEFORE the /user prefix check,
+  // otherwise the "/user" branch wins and "领券中心" never highlights.
+  if (route.path === '/user/coupons') return 'coupon'
   if (route.path.startsWith('/order')) return 'order'
   if (route.path.startsWith('/cart')) return 'cart'
   if (route.path.startsWith('/user')) return 'user'

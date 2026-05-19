@@ -37,7 +37,10 @@ async function onToggleAll() {
 }
 async function onQtyChange(item: CartItem, qty: number | undefined) {
   if (!qty || qty < 1) { qty = 1 }
-  if (item.stock > 0 && qty > item.stock) {
+  // Guard: zero-stock items must not allow quantity changes — the
+  // :max fallback "item.stock || 99" used to allow qty=99 on oos items.
+  if (item.stock <= 0) { ElMessage.warning('该商品已失效'); return }
+  if (qty > item.stock) {
     ElMessage.warning(`库存不足，最多可购买 ${item.stock} 件`)
     qty = item.stock
   }
@@ -106,7 +109,7 @@ onMounted(loadCart)
               </td>
               <td><span class="price price-sm">&yen;{{ formatPrice(item.price) }}</span></td>
               <td>
-                <el-input-number :model-value="item.quantity" :min="1" :max="item.stock || 99" size="small" @update:model-value="(v: number|undefined) => onQtyChange(item, v)" />
+                <el-input-number :model-value="item.quantity" :min="1" :max="Math.max(item.stock, 1)" size="small" @update:model-value="(v: number|undefined) => onQtyChange(item, v)" />
                 <div v-if="item.stock > 0" style="font-size:11px;margin-top:2px" :style="{ color: item.quantity >= item.stock ? '#f56c6c' : '#909399' }">
                   库存 {{ item.stock }} 件<span v-if="item.quantity >= item.stock">（已达上限）</span>
                 </div>

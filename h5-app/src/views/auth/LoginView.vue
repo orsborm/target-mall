@@ -60,7 +60,9 @@ async function handleLogin() {
     userStore.setAuth(res.access_token, res.refresh_token, res.user_info)
     ElMessage.success('登录成功')
     const redirect = (route.query.redirect as string) || '/'
-    router.replace(redirect)
+    // Validate redirect starts with '/' to prevent open-redirect phishing
+    // via crafted URLs like /login?redirect=https://evil.com.
+    router.replace(redirect.startsWith('/') ? redirect : '/')
   } catch {
     fetchCaptcha()
     form.captcha_code = ''

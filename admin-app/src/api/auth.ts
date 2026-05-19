@@ -21,11 +21,19 @@ export function getCaptcha() {
   return request.get<{ captcha_id: string; captcha_image: string }>('/sys/common/captcha')
 }
 
+export function getAdminProfile() {
+  // Used by App.vue on mount to restore userInfo after a page refresh.
+  return request.get<AdminUserInfo>('/user/profile/')
+}
+
 export async function refreshAdminToken(refreshToken: string): Promise<string | null> {
   try {
     const res = await axios.post(
       `${import.meta.env.VITE_API_BASE}/user/auth/refresh-token`,
       { refresh_token: refreshToken },
+      // Without a timeout, a hung refresh endpoint blocks ALL subsequent
+      // 401-retry requests queued in refreshSubscribers forever.
+      { timeout: 10000 },
     )
     if (res.data?.code === 0 && res.data?.data?.access_token) {
       return res.data.data.access_token
