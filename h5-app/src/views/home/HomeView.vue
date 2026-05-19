@@ -112,9 +112,9 @@ onMounted(() => { loadHome(); loadCoupons(); loadCategories() })
 
     <!-- Category Quick Nav -->
     <div class="home-cats">
+      <!-- Fallback object includes all GoodsCategory fields so property
+           access (e.g. .icon, .parent_id) never hits undefined -->
       <div
-        <!-- Fallback object now includes ALL GoodsCategory fields to prevent
-             undefined property access if any code iterates beyond .name -->
         v-for="cat in (homeCategories.length > 0 ? homeCategories : [{ id: 0, name: '全部商品', icon: '', parent_id: 0, level: 1, sort_order: 0 }])"
         :key="cat.id"
         class="cat-item card-hover"
