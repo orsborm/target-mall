@@ -31,27 +31,34 @@ async function handleCancel() {
   if (!order.value) return
   try { await ElMessageBox.confirm('确定取消该订单吗？', '提示', { type: 'warning' }) } catch { return }
   actionLoading.value = true
-  try { await cancelOrder(order.value.id); ElMessage.success('订单已取消'); order.value.status = 'cancelled' } catch { /* ignore */ } finally { actionLoading.value = false }
+  try { await cancelOrder(order.value.id); ElMessage.success('订单已取消'); order.value.status = 'cancelled' } catch { ElMessage.error('取消订单失败') } finally { actionLoading.value = false }
 }
 async function handleConfirm() {
   if (!order.value) return
   actionLoading.value = true
-  try { await confirmReceipt(order.value.id); ElMessage.success('已确认收货'); order.value.status = 'received' } catch { /* ignore */ } finally { actionLoading.value = false }
+  try { await confirmReceipt(order.value.id); ElMessage.success('已确认收货'); order.value.status = 'received' } catch { ElMessage.error('确认收货失败') } finally { actionLoading.value = false }
 }
 async function handlePay() {
   if (!order.value) return
   actionLoading.value = true
-  try { const res = await payOrder(order.value.id); if (res.paid) { ElMessage.success('支付成功'); order.value.status = 'paid' } } catch { /* ignore */ } finally { actionLoading.value = false }
+  try { const res = await payOrder(order.value.id); if (res.paid) { ElMessage.success('支付成功'); order.value.status = 'paid' } } catch { ElMessage.error('支付失败') } finally { actionLoading.value = false }
 }
 async function handleRefund() {
   if (!order.value) return
-  try { await ElMessageBox.confirm('确定申请退款吗？', '申请退款', { type: 'warning' }) } catch { return }
+  try {
+    await ElMessageBox.confirm('确定申请退款吗？退款将按原支付方式退回。', '申请退款', {
+      type: 'warning',
+      distinguishCancelAndClose: true,
+      confirmButtonText: '确认退款',
+      cancelButtonText: '取消',
+    })
+  } catch { return }
   actionLoading.value = true
   try {
     await requestRefund(order.value.id)
-    ElMessage.success('退款申请已提交')
+    ElMessage.success('退款申请已提交，请等待审核')
     order.value.status = 'refunding'
-  } catch { /* interceptor handles */ } finally { actionLoading.value = false }
+  } catch { ElMessage.error('申请退款失败，请重试') } finally { actionLoading.value = false }
 }
 </script>
 
@@ -68,7 +75,7 @@ async function handleRefund() {
       </el-result>
       <template v-else-if="order">
         <div class="od-status-bar">
-          <el-tag :type="ORDER_STATUS_MAP[order.status]?.type as any" size="large">{{ ORDER_STATUS_MAP[order.status]?.text }}</el-tag>
+          <el-tag :type="ORDER_STATUS_MAP[order.status]?.type" size="large">{{ ORDER_STATUS_MAP[order.status]?.text }}</el-tag>
           <span class="od-no">订单号: {{ order.order_no }}</span>
           <span>创建时间: {{ formatDate(order.created_at) }}</span>
         </div>
@@ -103,6 +110,25 @@ async function handleRefund() {
               <div class="od-summary__row"><span>运费</span><span>&yen;{{ formatPrice(order.freight_amount) }}</span></div>
               <div class="od-summary__row od-summary__total"><span>实付金额</span><span class="price price-lg">&yen;{{ formatPrice(order.pay_amount) }}</span></div>
             </div>
+            <!-- Shipping Timeline -->
+            <div class="od-section" v-if="['paid','shipped','received','completed'].includes(order.status)">
+              <h3>物流追踪</h3>
+              <el-steps :active="order.status === 'paid' ? 0 : order.status === 'shipped' ? 1 : order.status === 'received' ? 2 : 3" finish-status="success" style="margin:16px 0">
+                <el-step title="已付款" :description="order.paid_at?.slice(0,16) || ''" />
+                <el-step title="已发货" :description="order.shipped_at?.slice(0,16) || '等待发货'">
+                  <template v-if="order.shipping_company" #description>
+                    {{ order.shipping_company }} {{ order.tracking_no }}<br/>{{ order.shipped_at?.slice(0,16) }}
+                  </template>
+                </el-step>
+                <el-step title="已收货" :description="order.status === 'received' || order.status === 'completed' ? '已确认收货' : '等待收货'" />
+                <el-step title="已完成" :description="order.status === 'completed' ? '订单已完成' : '等待完成'" />
+              </el-steps>
+              <div v-if="order.tracking_no" style="font-size:12px;color:#409eff;margin-top:8px">
+                快递单号: {{ order.shipping_company }} {{ order.tracking_no }}
+                <a :href="'https://www.kuaidi100.com/chaxun?com=&nu=' + order.tracking_no" target="_blank" rel="noopener noreferrer" style="margin-left:8px">查询物流</a>
+              </div>
+            </div>
+
             <!-- Refund Flow -->
             <div class="od-section" v-if="order.status === 'refunding'">
               <h3>退款进度</h3>

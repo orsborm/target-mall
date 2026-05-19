@@ -33,19 +33,19 @@ async function handleSave() {
   const { name, phone, province, city, district, detail } = form.value
   if (!name.trim()) { ElMessage.warning('请输入收货人姓名'); return }
   if (!/^1[3-9]\d{9}$/.test(phone)) { ElMessage.warning('手机号格式不正确'); return }
-  if (!province.trim() || !district.trim()) { ElMessage.warning('请填写完整地区信息'); return }
+  if (!province.trim() || !city.trim() || !district.trim()) { ElMessage.warning('请填写完整地区信息'); return }
   if (!detail.trim()) { ElMessage.warning('请输入详细地址'); return }
   saving.value = true
   try {
     if (editingId.value > 0) await updateAddress(editingId.value, form.value)
     else await createAddress(form.value)
     ElMessage.success('保存成功'); showDialog.value = false; loadAddresses()
-  } catch { /* ignore */ } finally { saving.value = false }
+  } catch { ElMessage.error('保存地址失败') } finally { saving.value = false }
 }
 
 async function handleDelete(id: number) {
   try { await ElMessageBox.confirm('确定删除该地址吗？', '提示', { type: 'warning' }) } catch { return }
-  try { await deleteAddress(id); ElMessage.success('已删除'); loadAddresses() } catch { /* ignore */ }
+  try { await deleteAddress(id); ElMessage.success('已删除'); loadAddresses() } catch { ElMessage.error('删除地址失败') }
 }
 
 onMounted(loadAddresses)
@@ -86,6 +86,7 @@ onMounted(loadAddresses)
         <el-form-item label="市"><el-input v-model="form.city" placeholder="城市" /></el-form-item>
         <el-form-item label="区"><el-input v-model="form.district" placeholder="区县" /></el-form-item>
         <el-form-item label="详细地址"><el-input v-model="form.detail" placeholder="街道/门牌号" /></el-form-item>
+        <el-form-item label="默认地址"><el-checkbox v-model="form.is_default">设为默认收货地址</el-checkbox></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showDialog = false">取消</el-button>

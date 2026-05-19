@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
-import { getGoodsList, updateGoodsStatus, updateGoods, getGoodsDetail, updateSkus } from '@/api/goods-mgmt'
-import type { GoodsItem, SkuInfo } from '@/api/goods-mgmt'
+import PaginationWrap from '@/components/PaginationWrap.vue'
+import { getGoodsList, updateGoodsStatus, updateGoods, getGoodsDetail, updateSkus, createGoods, deleteGoods, getCategoryTree, createCategory, updateCategory, deleteCategory } from '@/api/goods-mgmt'
+import type { GoodsItem, SkuInfo, GoodsCategory } from '@/api/goods-mgmt'
 import { formatPrice, formatDate } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Edit, Delete, Plus } from '@element-plus/icons-vue'
@@ -23,10 +24,115 @@ const newImageUrl = ref('')
 const editingSkus = ref<SkuInfo[]>([])
 const skuLoading = ref(false)
 
+// ---- create state ----
+const createVisible = ref(false)
+interface CreateSkuEntry { sku_code: string; price: number; stock: number; main_image: string; specs: string }
+const creatingGoods = reactive({
+  spu_code: '', name: '', subtitle: '', brand: '', category_id: 1,
+  main_image: '', min_price: 0.01, max_price: 0.01, sales: 0, status: 1,
+})
+const creatingImages = ref<string[]>([])
+const newCreateImageUrl = ref('')
+const creatingSkus = ref<CreateSkuEntry[]>([])
+const creating = ref(false)
+
+const categories = ref<GoodsCategory[]>([])
+const filterCategory = ref<number>(0)
+const filterKeyword = ref('')
+
+async function loadCategories() {
+  try { categories.value = await getCategoryTree() } catch { ElMessage.warning('加载分类列表失败，分类选择不可用') }
+}
+
+function getCategoryName(id: number): string {
+  const cat = flattenCategories(categories.value).find(c => c.id === id)
+  return cat?.name || String(id)
+}
+
+function flattenCategories(list: GoodsCategory[], depth = 0): { id: number; name: string }[] {
+  const result: { id: number; name: string }[] = []
+  for (const c of list) {
+    result.push({ id: c.id, name: (depth > 0 ? '　'.repeat(depth) : '') + c.name })
+    if (c.children && c.children.length > 0) {
+      result.push(...flattenCategories(c.children, depth + 1))
+    }
+  }
+  return result
+}
+
+function openCreate() {
+  creatingGoods.spu_code = ''; creatingGoods.name = ''; creatingGoods.subtitle = ''
+  creatingGoods.brand = ''; creatingGoods.category_id = 1
+  creatingGoods.main_image = ''; creatingGoods.min_price = 0.01
+  creatingGoods.max_price = 0.01; creatingGoods.sales = 0; creatingGoods.status = 1
+  creatingImages.value = []; newCreateImageUrl.value = ''; creatingSkus.value = []
+  createVisible.value = true
+}
+function addCreateImage() {
+  const url = newCreateImageUrl.value.trim()
+  if (!url) { ElMessage.warning('请输入图片URL'); return }
+  creatingImages.value.push(url); newCreateImageUrl.value = ''
+}
+function removeCreateImage(idx: number) { creatingImages.value.splice(idx, 1) }
+function setAsCreateMain(url: string) { creatingGoods.main_image = url }
+
+function addCreateSku() {
+  creatingSkus.value.push({ sku_code: '', price: 0.01, stock: 0, main_image: '', specs: '' })
+}
+function removeCreateSku(idx: number) { creatingSkus.value.splice(idx, 1) }
+
+async function handleDelete(row: GoodsItemExt) {
+  try { await ElMessageBox.confirm(`确定删除商品「${row.name}」？`, '确认删除', { type: 'error', confirmButtonText: '确定删除' }) } catch { return }
+  try {
+    await deleteGoods(row.id)
+    ElMessage.success('商品已删除')
+    loadGoods()
+  } catch { ElMessage.error('删除失败') }
+}
+
+async function handleCreate() {
+  if (!creatingGoods.name.trim()) { ElMessage.warning('请输入商品名称'); return }
+  if (creatingGoods.min_price > creatingGoods.max_price) { ElMessage.warning('最低价不能大于最高价'); return }
+  creating.value = true
+  try {
+    const body: Record<string, unknown> = {
+      spu_code: creatingGoods.spu_code || `SPU${Date.now()}`,
+      name: creatingGoods.name, subtitle: creatingGoods.subtitle,
+      category_id: creatingGoods.category_id, brand: creatingGoods.brand,
+      main_image: creatingGoods.main_image, images: creatingImages.value,
+      min_price: Math.round((creatingGoods.min_price || 0) * 100),
+      max_price: Math.round((creatingGoods.max_price || 0) * 100),
+      sales: creatingGoods.sales, status: creatingGoods.status,
+    }
+    if (creatingSkus.value.length > 0) {
+      body.skus = creatingSkus.value.map(s => {
+        const specs: Record<string, string> = {}
+        if (s.specs.trim()) {
+          s.specs.split(',').forEach(pair => {
+            const [k, v] = pair.split(':').map(x => x.trim())
+            if (k && v) specs[k] = v
+          })
+        }
+        return {
+          sku_code: s.sku_code, price: Math.round((s.price || 0) * 100),
+          stock: s.stock, main_image: s.main_image, specs,
+        }
+      })
+    }
+    await createGoods(body)
+    ElMessage.success('商品创建成功')
+    createVisible.value = false
+    loadGoods()
+  } catch { ElMessage.error('创建失败') } finally { creating.value = false }
+}
+
 async function loadGoods() {
   loading.value = true
   try {
-    const res = await getGoodsList({ page: page.value, page_size: pageSize })
+    const params: Record<string, string | number> = { page: page.value, page_size: pageSize }
+    if (filterCategory.value > 0) params.category_id = filterCategory.value
+    if (filterKeyword.value.trim()) params.keyword = filterKeyword.value.trim()
+    const res = await getGoodsList(params)
     goods.value = res.list as GoodsItemExt[]; total.value = res.total
   } catch { ElMessage.error('加载商品失败') } finally { loading.value = false }
 }
@@ -73,9 +179,10 @@ function removeImage(idx: number) { editingImages.value.splice(idx, 1) }
 function setAsMain(url: string) { editingGoods.main_image = url }
 
 async function handleSave() {
+  if ((editingGoods.min_price ?? 0) > (editingGoods.max_price ?? 0)) { ElMessage.warning('最低价不能大于最高价'); return }
   saving.value = true
   try {
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       name: editingGoods.name, subtitle: editingGoods.subtitle,
       brand: editingGoods.brand, main_image: editingGoods.main_image,
       min_price: Math.round((editingGoods.min_price || 0) * 100),
@@ -90,24 +197,67 @@ async function handleSave() {
         id: s.id, main_image: s.main_image,
         price: Math.round((s.price || 0) * 100),
       }))
-      await updateSkus(editingId.value, skuUpdates).catch(() => {})
+      await updateSkus(editingId.value, skuUpdates).catch(() => { ElMessage.warning('SKU 更新失败，请重试') })
     }
-    const g = goods.value.find(g => g.id === editingId.value)
-    if (g) Object.assign(g, editingGoods)
     ElMessage.success('商品更新成功')
     editVisible.value = false
+    loadGoods()
   } catch { ElMessage.error('更新失败') } finally { saving.value = false }
 }
 
+// ---- Category management ----
+const catDialogVisible = ref(false)
+const catForm = ref({ name: '', parent_id: 0, level: 1, sort_order: 1 })
+const editingCatId = ref(0)
+const catSaving = ref(false)
+
+function openCatDialog() { catDialogVisible.value = true }
+function openAddCat() {
+  editingCatId.value = 0
+  catForm.value = { name: '', parent_id: 0, level: 1, sort_order: categories.value.length + 1 }
+}
+function openEditCat(cat: GoodsCategory) {
+  editingCatId.value = cat.id
+  catForm.value = { name: cat.name, parent_id: cat.parent_id, level: cat.level, sort_order: cat.sort_order }
+}
+async function handleCatSave() {
+  if (!catForm.value.name.trim()) { ElMessage.warning('请输入分类名称'); return }
+  catSaving.value = true
+  try {
+    if (editingCatId.value > 0) {
+      await updateCategory(editingCatId.value, { name: catForm.value.name.trim(), sort_order: catForm.value.sort_order })
+    } else {
+      await createCategory({ name: catForm.value.name.trim(), parent_id: catForm.value.parent_id, level: catForm.value.level, sort_order: catForm.value.sort_order })
+    }
+    ElMessage.success(editingCatId.value > 0 ? '分类已更新' : '分类已创建')
+    await loadCategories()
+  } catch { ElMessage.error('操作失败') } finally { catSaving.value = false }
+}
+async function handleCatDelete(cat: GoodsCategory) {
+  try { await ElMessageBox.confirm(`确定删除分类「${cat.name}」？关联商品将保留。`, '确认删除', { type: 'warning' }) } catch { return }
+  try { await deleteCategory(cat.id); ElMessage.success('已删除'); await loadCategories() } catch { ElMessage.error('删除失败') }
+}
+
 function changePage(p: number) { page.value = p; loadGoods() }
-onMounted(loadGoods)
+function searchGoods() { page.value = 1; loadGoods() }
+onMounted(() => { loadCategories(); loadGoods() })
 </script>
 
 <template>
   <AdminLayout>
     <div class="page-header">
       <h2>商品管理</h2>
-      <el-button :icon="Refresh" @click="loadGoods" :loading="loading">刷新</el-button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <el-select v-model="filterCategory" placeholder="全部分类" size="default" style="width:140px" @change="searchGoods" clearable>
+          <el-option :value="0" label="全部分类" />
+          <el-option v-for="c in flattenCategories(categories)" :key="c.id" :value="c.id" :label="c.name" />
+        </el-select>
+        <el-input v-model="filterKeyword" placeholder="搜索商品名称" size="default" style="width:200px" clearable @keyup.enter="searchGoods" @clear="searchGoods" />
+        <el-button type="primary" @click="searchGoods">搜索</el-button>
+        <el-button type="success" :icon="Plus" @click="openCreate">增加商品</el-button>
+        <el-button @click="openCatDialog">管理分类</el-button>
+        <el-button :icon="Refresh" @click="loadGoods" :loading="loading">刷新</el-button>
+      </div>
     </div>
 
     <el-table :data="goods" v-loading="loading" stripe>
@@ -120,6 +270,9 @@ onMounted(loadGoods)
       </el-table-column>
       <el-table-column prop="name" label="商品名称" min-width="160" />
       <el-table-column prop="brand" label="品牌" width="90" />
+      <el-table-column label="分类" width="100">
+        <template #default="{ row }">{{ getCategoryName(row.category_id) }}</template>
+      </el-table-column>
       <el-table-column label="价格" width="140" align="right">
         <template #default="{ row }">
           <span class="price">&yen;{{ formatPrice(row.min_price) }}</span>
@@ -139,19 +292,18 @@ onMounted(loadGoods)
           <el-tag :type="row.status === 1 ? 'success' : 'info'" size="small">{{ row.status === 1 ? '上架' : '下架' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="260" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
           <el-button link :type="row.status === 1 ? 'warning' : 'success'" @click="toggleStatus(row)">
             {{ row.status === 1 ? '下架' : '上架' }}
           </el-button>
+          <el-button link type="danger" :icon="Delete" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <div style="display:flex;justify-content:center;margin-top:16px" v-if="total > pageSize">
-      <el-pagination background layout="prev, pager, next" :total="total" :page-size="pageSize" :current-page="page" @current-change="changePage" />
-    </div>
+    <PaginationWrap :total="total" :page-size="pageSize" :page="page" @page-change="changePage" />
 
     <el-dialog v-model="editVisible" title="编辑商品" width="680px">
       <el-form label-width="80px">
@@ -231,10 +383,131 @@ onMounted(loadGoods)
         <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 增加商品 -->
+    <el-dialog v-model="createVisible" title="增加商品" width="720px">
+      <el-form label-width="90px">
+        <el-form-item label="SPU编码">
+          <el-input v-model="creatingGoods.spu_code" placeholder="留空则自动生成" />
+        </el-form-item>
+        <el-form-item label="名称">
+          <el-input v-model="creatingGoods.name" placeholder="请输入商品名称" />
+        </el-form-item>
+        <el-form-item label="副标题">
+          <el-input v-model="creatingGoods.subtitle" placeholder='如 Cherry轴 高品质' />
+        </el-form-item>
+        <el-form-item label="品牌">
+          <el-input v-model="creatingGoods.brand" placeholder="如 罗技" />
+        </el-form-item>
+        <el-form-item label="分类">
+          <el-select v-model="creatingGoods.category_id" placeholder="选择分类" style="width:100%">
+            <el-option v-for="c in flattenCategories(categories)" :key="c.id" :value="c.id" :label="c.name" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-switch v-model="creatingGoods.status" :active-value="1" :inactive-value="0" active-text="上架" inactive-text="下架" />
+        </el-form-item>
+
+        <el-form-item label="封面图">
+          <div style="display:flex;align-items:center;gap:10px">
+            <el-image v-if="creatingGoods.main_image" :src="creatingGoods.main_image" style="width:80px;height:80px;border-radius:6px;border:2px solid #ff6b35" fit="cover">
+              <template #error><div style="background:#f0f2f5;width:80px;height:80px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#ccc">无图</div></template>
+            </el-image>
+            <el-input v-model="creatingGoods.main_image" placeholder="主图URL" style="flex:1" />
+          </div>
+        </el-form-item>
+
+        <el-form-item label="商品图片">
+          <div style="width:100%">
+            <div v-if="creatingImages.length > 0" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+              <div v-for="(img, idx) in creatingImages" :key="idx" style="position:relative;width:80px;height:80px;border-radius:6px;overflow:hidden;border:2px solid #e8e8e8">
+                <el-image :src="img" style="width:100%;height:100%" fit="cover">
+                  <template #error><div style="background:#f0f2f5;width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#ccc">无图</div></template>
+                </el-image>
+                <div style="position:absolute;bottom:0;left:0;right:0;display:flex">
+                  <el-button size="small" text style="flex:1;font-size:11px;background:rgba(0,0,0,.6);color:#fff;border-radius:0" @click="setAsCreateMain(img)">设为主图</el-button>
+                  <el-button size="small" text style="font-size:11px;background:rgba(244,67,54,.8);color:#fff;border-radius:0" @click="removeCreateImage(idx)"><el-icon><Delete /></el-icon></el-button>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <el-input v-model="newCreateImageUrl" placeholder="输入新图片URL" @keyup.enter="addCreateImage" style="flex:1" />
+              <el-button type="primary" :icon="Plus" @click="addCreateImage">添加</el-button>
+            </div>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="SKU配置">
+          <div style="width:100%">
+            <div v-if="creatingSkus.length === 0" style="color:#999;font-size:13px;margin-bottom:8px">暂未添加 SKU，可创建后编辑</div>
+            <div v-for="(sku, idx) in creatingSkus" :key="idx" style="margin-bottom:12px;padding:10px;background:#fafafa;border-radius:6px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <span style="font-size:12px;color:#666;font-weight:500">SKU #{{ idx + 1 }}</span>
+                <el-button link type="danger" size="small" :icon="Delete" @click="removeCreateSku(idx)">删除</el-button>
+              </div>
+              <div style="display:flex;gap:6px;margin-bottom:6px">
+                <el-input v-model="sku.sku_code" placeholder="SKU编码" size="small" style="flex:1" />
+                <div style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
+                  售价 ¥<el-input-number v-model="sku.price" :min="0.01" :step="1" :precision="2" size="small" controls-position="right" style="width:120px" />
+                </div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap">
+                  库存 <el-input-number v-model="sku.stock" :min="0" :step="1" size="small" controls-position="right" style="width:90px" />
+                </div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <el-input v-model="sku.main_image" placeholder="图片URL" size="small" style="flex:1" />
+                <el-input v-model="sku.specs" placeholder="规格, 如: 颜色:黑色, 尺寸:L" size="small" style="flex:1.5" />
+              </div>
+            </div>
+            <el-button type="primary" plain size="small" :icon="Plus" @click="addCreateSku" style="margin-top:4px">添加 SKU</el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="最低价(元)">
+          <el-input-number v-model="creatingGoods.min_price" :min="0.01" :step="1" :precision="2" />
+        </el-form-item>
+        <el-form-item label="最高价(元)">
+          <el-input-number v-model="creatingGoods.max_price" :min="0.01" :step="1" :precision="2" />
+        </el-form-item>
+        <el-form-item label="销量">
+          <el-input-number v-model="creatingGoods.sales" :min="0" :step="1" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createVisible = false">取消</el-button>
+        <el-button type="primary" :loading="creating" @click="handleCreate">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 分类管理对话框 -->
+    <el-dialog v-model="catDialogVisible" title="管理商品分类" width="600px">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <el-input v-model="catForm.name" placeholder="分类名称" size="small" style="width:140px" />
+        <el-select v-model="catForm.parent_id" size="small" style="width:120px">
+          <el-option :value="0" label="顶级分类" />
+          <el-option v-for="c in categories" :key="c.id" :value="c.id" :label="c.name" />
+        </el-select>
+        <el-input-number v-model="catForm.sort_order" :min="1" :step="1" size="small" style="width:90px" />
+        <el-button type="primary" size="small" :loading="catSaving" @click="handleCatSave">
+          {{ editingCatId > 0 ? '更新' : '添加' }}
+        </el-button>
+        <el-button v-if="editingCatId > 0" size="small" @click="openAddCat">取消编辑</el-button>
+      </div>
+      <el-table :data="categories" size="small">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="name" label="名称" width="140" />
+        <el-table-column prop="level" label="层级" width="60" />
+        <el-table-column prop="sort_order" label="排序" width="70" />
+        <el-table-column label="操作">
+          <template #default="{ row }">
+            <el-button link type="primary" size="small" @click="openEditCat(row)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="handleCatDelete(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
   </AdminLayout>
 </template>
 
 <style scoped>
-.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-.page-header h2{font-size:20px}
 </style>

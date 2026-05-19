@@ -1,4 +1,17 @@
 import request from './request'
+import axios from 'axios'
+
+export function refreshToken(refreshToken: string): Promise<string | null> {
+  return axios.post(
+    `${import.meta.env.VITE_API_BASE}/user/auth/refresh-token`,
+    { refresh_token: refreshToken },
+  ).then(res => {
+    if (res.data?.code === 0 && res.data?.data?.access_token) {
+      return res.data.data.access_token as string
+    }
+    return null
+  }).catch((e) => { if (import.meta.env.DEV) console.error('Token refresh failed:', e instanceof Error ? e.message : e); return null })
+}
 
 export interface LoginParams {
   username: string

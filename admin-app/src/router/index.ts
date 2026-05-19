@@ -12,13 +12,17 @@ const router = createRouter({
     { path: '/users', name: 'users', component: () => import('@/views/users/UsersManage.vue'), meta: { title: '用户管理', auth: true } },
     { path: '/orders', name: 'orders', component: () => import('@/views/orders/OrdersManage.vue'), meta: { title: '订单管理', auth: true } },
     { path: '/logs', name: 'logs', component: () => import('@/views/logs/LogsView.vue'), meta: { title: '日志管理', auth: true } },
-    { path: '/:pathMatch(.*)*', redirect: '/' },
+    { path: '/banners', name: 'banners', component: () => import('@/views/marketing/BannerManage.vue'), meta: { title: '轮播图管理', auth: true } },
+    { path: '/coupons', name: 'coupons', component: () => import('@/views/marketing/CouponManage.vue'), meta: { title: '优惠券管理', auth: true } },
+    { path: '/comments', name: 'comments', component: () => import('@/views/goods/CommentsManage.vue'), meta: { title: '评论管理', auth: true } },
+    { path: '/feedbacks', name: 'feedbacks', component: () => import('@/views/feedback/FeedbackManage.vue'), meta: { title: '反馈管理', auth: true } },
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/system/NotFoundView.vue'), meta: { title: '页面未找到' } },
   ],
 })
 
 router.beforeEach((to, _from, next) => {
   const store = useAdminStore()
-  document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE || 'H5靶机后台'}`
+  // Run auth checks BEFORE setting title, so redirects don't leak page titles
   if (to.meta.auth && !store.isLoggedIn) {
     ElMessage.warning('请先登录')
     next({ name: 'login', query: { redirect: to.fullPath } })
@@ -28,6 +32,7 @@ router.beforeEach((to, _from, next) => {
     next({ name: 'dashboard' })
     return
   }
+  document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE || 'H5靶机后台'}`
   next()
 })
 

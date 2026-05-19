@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useRouter, useRoute } from 'vue-router'
 import { useAdminStore } from '@/stores/user'
-import { ElMessageBox } from 'element-plus'
-import { Setting, DataAnalysis, Goods, Tickets, User, Document } from '@element-plus/icons-vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
+import { Setting, DataAnalysis, Goods, Tickets, User, Document, Picture, ChatDotRound, ChatLineSquare } from '@element-plus/icons-vue'
+import { adminLogout } from '@/api/auth'
 
 const appTitle = import.meta.env.VITE_APP_TITLE || 'H5靶机后台'
 const router = useRouter()
@@ -11,7 +12,10 @@ const adminStore = useAdminStore()
 
 async function handleLogout() {
   try { await ElMessageBox.confirm('确定退出登录？', '提示', { type: 'warning' }) } catch { return }
-  adminStore.logout(); router.replace('/login')
+  try { await adminLogout() } catch { ElMessage.warning('服务端注销失败，已本地退出') }
+  adminStore.logout()
+  ElMessage.success('已退出登录')
+  router.replace('/login')
 }
 </script>
 
@@ -30,6 +34,22 @@ async function handleLogout() {
         <el-menu-item index="/goods">
           <el-icon><Goods /></el-icon>
           <span>商品管理</span>
+        </el-menu-item>
+        <el-menu-item index="/banners">
+          <el-icon><Picture /></el-icon>
+          <span>轮播图管理</span>
+        </el-menu-item>
+        <el-menu-item index="/coupons">
+          <el-icon><Tickets /></el-icon>
+          <span>优惠券管理</span>
+        </el-menu-item>
+        <el-menu-item index="/comments">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>评论管理</span>
+        </el-menu-item>
+        <el-menu-item index="/feedbacks">
+          <el-icon><ChatLineSquare /></el-icon>
+          <span>反馈管理</span>
         </el-menu-item>
         <el-menu-item index="/orders">
           <el-icon><Tickets /></el-icon>

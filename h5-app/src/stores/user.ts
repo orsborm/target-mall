@@ -8,12 +8,6 @@ export const useUserStore = defineStore('user', () => {
   const refreshToken = ref<string>(getItem('refresh_token') || '')
   const userInfo = ref<UserInfo | null>(null)
 
-  // Restore userInfo from localStorage on init
-  try {
-    const saved = getItem('user_info')
-    if (saved) userInfo.value = JSON.parse(saved)
-  } catch { /* ignore corrupt data */ }
-
   const isLoggedIn = computed(() => !!token.value)
 
   function setAuth(accessToken: string, refresh_token: string, info: UserInfo) {
@@ -22,12 +16,10 @@ export const useUserStore = defineStore('user', () => {
     userInfo.value = info
     setItem('access_token', accessToken)
     setItem('refresh_token', refresh_token)
-    setItem('user_info', JSON.stringify(info))
   }
 
   function setUserInfo(info: UserInfo) {
     userInfo.value = info
-    setItem('user_info', JSON.stringify(info))
   }
 
   function setToken(tk: string) {
@@ -41,7 +33,6 @@ export const useUserStore = defineStore('user', () => {
     userInfo.value = null
     removeItem('access_token')
     removeItem('refresh_token')
-    removeItem('user_info')
   }
 
   return { token, refreshToken, userInfo, isLoggedIn, setAuth, setUserInfo, setToken, logout }

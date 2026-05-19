@@ -1,8 +1,21 @@
 /** Format cents to yuan display string */
 export function formatPrice(cents: number | null | undefined): string {
-  if (cents == null || isNaN(cents)) return '0.00'
+  if (cents == null || isNaN(cents)) return '--'
   return (cents / 100).toFixed(2)
 }
+
+/** Convert yuan (number) to cents (integer) */
+export function toCents(yuan: number): number {
+  return Math.round(yuan * 100)
+}
+
+/** Convert cents (integer) to yuan (number) */
+export function fromCents(cents: number): number {
+  return Math.round(cents) / 100
+}
+
+/** Default page size for list views */
+export const DEFAULT_PAGE_SIZE = 20
 
 export function formatDate(dateStr: string): string {
   if (!dateStr) return ''

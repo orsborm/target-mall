@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getGoodsDetailFull } from '@/api/goods'
-import type { GoodsItem, GoodsDetailResponse } from '@/api/goods'
+import { getGoodsDetailFull, getComments, postComment, toggleFavoriteApi } from '@/api/goods'
+import type { GoodsItem, GoodsDetailResponse, CommentItem } from '@/api/goods'
 import { addToCart } from '@/api/cart'
 import { useCartStore } from '@/stores/cart'
 import { useUserStore } from '@/stores/user'
 import SafeImage from '@/components/SafeImage.vue'
 import { formatPrice } from '@/utils/format'
 import { ElMessage } from 'element-plus'
+import { Star, ChatDotRound, StarFilled } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -40,6 +41,7 @@ async function loadDetail() {
   error.value = ''; loading.value = true
   try {
     const id = Number(route.params.id)
+    if (isNaN(id) || id <= 0) { error.value = '无效的商品ID'; loading.value = false; return }
     detail.value = await getGoodsDetailFull(id)
     if (detail.value?.spu) {
       mainImage.value = detail.value.spu.main_image
@@ -47,29 +49,68 @@ async function loadDetail() {
     }
   } catch { error.value = '加载商品失败，请重试' } finally { loading.value = false }
 }
-onMounted(() => {
-  watch(() => route.params.id, () => loadDetail(), { immediate: true })
-})
-
-async function handleAddCart() {
+// ---- Favorite state ----
+const isFav = ref(false)
+const favLoading = ref(false)
+async function toggleFav() {
   if (!userStore.isLoggedIn) { router.push('/login'); return }
-  if (!currentSku.value) { ElMessage.warning('请选择商品规格'); return }
-  addingCart.value = true
+  if (!goods.value) return
+  const uid = userStore.userInfo?.id
+  if (!uid) { ElMessage.warning('请先登录'); return }
+  favLoading.value = true
   try {
-    await addToCart({ sku_id: currentSku.value.id, quantity: quantity.value })
-    cartStore.addCount(quantity.value)
-    ElMessage.success('已加入购物车')
-  } catch { /* interceptor handles */ } finally { addingCart.value = false }
+    const res = await toggleFavoriteApi(uid, goods.value.id)
+    isFav.value = res.favorited
+    ElMessage.success(res.favorited ? '已收藏' : '已取消收藏')
+  } catch { /* ignore */ } finally { favLoading.value = false }
 }
 
-async function handleBuy() {
+// ---- Reviews state ----
+const descTab = ref<'desc' | 'reviews'>('desc')
+const comments = ref<CommentItem[]>([])
+const commentTotal = ref(0)
+const avgRating = ref(0)
+const commentPage = ref(1)
+const commentLoading = ref(false)
+const showReviewForm = ref(false)
+const reviewForm = ref({ rating: 5, content: '' })
+const submittingReview = ref(false)
+
+async function loadComments(reset = false) {
+  if (!goods.value) return
+  if (reset) { commentPage.value = 1; comments.value = [] }
+  commentLoading.value = true
+  try {
+    const res = await getComments(goods.value.id, { page: commentPage.value, page_size: 10 })
+    comments.value = reset ? res.list : [...comments.value, ...res.list]
+    commentTotal.value = res.total; avgRating.value = res.avgRating
+  } catch { /* ignore */ } finally { commentLoading.value = false }
+}
+
+async function submitReview() {
+  if (!reviewForm.value.content.trim()) { ElMessage.warning('请输入评价内容'); return }
+  if (!goods.value || !userStore.userInfo) return
+  submittingReview.value = true
+  try {
+    await postComment({ spu_id: goods.value.id, user_id: userStore.userInfo.id, username: userStore.userInfo.nickname || userStore.userInfo.username, rating: reviewForm.value.rating, content: reviewForm.value.content.trim() })
+    ElMessage.success('评价提交成功')
+    showReviewForm.value = false; reviewForm.value = { rating: 5, content: '' }
+    loadComments(true)
+  } catch { ElMessage.error('提交评价失败') } finally { submittingReview.value = false }
+}
+
+onMounted(() => {
+  watch(() => route.params.id, () => { loadDetail(); loadComments(true) }, { immediate: true })
+})
+
+async function handleCartAction(redirectToCart: boolean) {
   if (!userStore.isLoggedIn) { router.push('/login'); return }
   if (!currentSku.value) { ElMessage.warning('请选择商品规格'); return }
   addingCart.value = true
   try {
     await addToCart({ sku_id: currentSku.value.id, quantity: quantity.value })
     cartStore.addCount(quantity.value)
-    router.push('/cart')
+    if (redirectToCart) { router.push('/cart') } else { ElMessage.success('已加入购物车') }
   } catch { /* interceptor handles */ } finally { addingCart.value = false }
 }
 </script>
@@ -101,7 +142,10 @@ async function handleBuy() {
 
           <!-- Info -->
           <div class="detail-info">
-            <h1>{{ goods.name }}</h1>
+            <div style="display:flex;align-items:center;gap:8px">
+              <h1 style="flex:1">{{ goods.name }}</h1>
+              <el-button :icon="StarFilled" :type="isFav ? 'warning' : 'default'" circle size="small" :loading="favLoading" @click="toggleFav" :style="{ color: isFav ? '#e6a23c' : '#c0c4cc' }" />
+            </div>
             <p class="detail-subtitle" v-if="goods.subtitle">{{ goods.subtitle }}</p>
 
             <div class="detail-price-row">
@@ -120,12 +164,12 @@ async function handleBuy() {
                   v-for="sku in detail.skus"
                   :key="sku.id"
                   class="sku-item"
-                  :class="{ active: currentSku?.id === sku.id }"
-                  @click="selectSku(sku)"
+                  :class="{ active: currentSku?.id === sku.id, 'sku-oos': sku.stock === 0 }"
+                  @click="sku.stock > 0 && selectSku(sku)"
                 >
                   <SafeImage :src="sku.main_image" alt="" width="32" height="32" fit="cover" radius="4" />
                   <span>&yen;{{ formatPrice(sku.price) }}</span>
-                  <span class="sku-stock">库存: {{ sku.stock }}</span>
+                  <span class="sku-stock" :class="{ 'sku-stock-zero': sku.stock === 0 }">{{ sku.stock === 0 ? '缺货' : `库存: ${sku.stock}` }}</span>
                 </div>
               </div>
             </div>
@@ -148,19 +192,63 @@ async function handleBuy() {
             </div>
 
             <div class="detail-actions">
-              <el-button size="large" @click="handleAddCart" :loading="addingCart" :disabled="selectedStock === 0">加入购物车</el-button>
-              <el-button size="large" type="danger" @click="handleBuy" :loading="addingCart" :disabled="selectedStock === 0">立即购买</el-button>
+              <el-button size="large" @click="handleCartAction(false)" :loading="addingCart" :disabled="selectedStock === 0">加入购物车</el-button>
+              <el-button size="large" type="danger" @click="handleCartAction(true)" :loading="addingCart" :disabled="selectedStock === 0">立即购买</el-button>
             </div>
           </div>
         </div>
 
-        <!-- Description -->
+        <!-- Description & Reviews Tabs -->
         <div class="detail-desc">
-          <h3>商品详情</h3>
-          <p v-if="goods.subtitle">{{ goods.subtitle }}</p>
-          <p>品牌: {{ goods.brand }} | 编号: {{ goods.spu_code }}</p>
-          <div v-if="goods.detail_html" v-html="goods.detail_html" />
-          <p v-else>此商品为靶机测试商品，仅供学习和自动化练习使用。</p>
+          <div class="desc-tabs">
+            <span :class="{ active: descTab === 'desc' }" @click="descTab = 'desc'">商品详情</span>
+            <span :class="{ active: descTab === 'reviews' }" @click="descTab = 'reviews'; loadComments(true)">
+              商品评价{{ avgRating > 0 ? ` (${avgRating}分)` : '' }}
+            </span>
+          </div>
+
+          <template v-if="descTab === 'desc'">
+            <p v-if="goods.subtitle">{{ goods.subtitle }}</p>
+            <p>品牌: {{ goods.brand }} | 编号: {{ goods.spu_code }}</p>
+            <div v-if="goods.detail_html" v-text="goods.detail_html" />
+            <p v-else>此商品为靶机测试商品，仅供学习和自动化练习使用。</p>
+          </template>
+
+          <template v-else>
+            <div v-if="avgRating > 0" style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+              <span style="font-size:24px;font-weight:700;color:#f56c6c">{{ avgRating }}</span>
+              <span style="color:#999;font-size:13px">{{ commentTotal }} 条评价</span>
+              <el-button size="small" :icon="ChatDotRound" @click="showReviewForm = !showReviewForm" style="margin-left:auto">写评价</el-button>
+            </div>
+            <div v-else style="margin-bottom:12px;display:flex;align-items:center;gap:8px">
+              <span style="color:#999;font-size:14px">暂无评价</span>
+              <el-button size="small" :icon="ChatDotRound" @click="showReviewForm = !showReviewForm" style="margin-left:auto">写评价</el-button>
+            </div>
+
+            <div v-if="showReviewForm" style="padding:14px;background:#fafafa;border-radius:8px;margin-bottom:14px">
+              <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+                <span style="font-size:13px">评分:</span>
+                <el-rate v-model="reviewForm.rating" :max="5" size="small" />
+              </div>
+              <el-input v-model="reviewForm.content" type="textarea" :rows="3" placeholder="分享你的使用体验..." style="margin-bottom:8px" />
+              <el-button type="primary" size="small" :loading="submittingReview" @click="submitReview">提交评价</el-button>
+            </div>
+
+            <div v-if="comments.length > 0">
+              <div v-for="c in comments" :key="c.id" style="padding:12px 0;border-bottom:1px solid #f5f5f5">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                  <span style="font-weight:500;font-size:13px">{{ c.username }}</span>
+                  <el-rate :model-value="c.rating" :max="5" size="small" disabled show-score style="height:20px" />
+                  <span style="color:#999;font-size:11px;margin-left:auto">{{ c.created_at?.slice(0, 10) }}</span>
+                </div>
+                <p style="font-size:13px;color:#333;margin:0">{{ c.content }}</p>
+              </div>
+              <div v-if="comments.length < commentTotal" style="text-align:center;margin-top:12px">
+                <el-button text type="primary" :loading="commentLoading" @click="commentPage++; loadComments(false)">加载更多评价 ({{ commentTotal - comments.length }} 条)</el-button>
+              </div>
+            </div>
+            <el-empty v-if="!commentLoading && comments.length === 0 && !showReviewForm" description="还没有评价，快来写第一条吧" />
+          </template>
         </div>
       </template>
     </el-skeleton>
@@ -186,6 +274,8 @@ async function handleBuy() {
 .sku-item:hover { border-color: #ff6b35; }
 .sku-item.active { border-color: #ff6b35; background: #fff7f0; color: #ff6b35; }
 .sku-stock { color: #c0c4cc; font-size: 11px; }
+.sku-stock-zero { color: #f56c6c; }
+.sku-oos { opacity: 0.45; cursor: not-allowed; }
 .detail-stock { margin-bottom: 12px; font-size: 13px; }
 .stock-ok { color: #67c23a; }
 .stock-low { color: #e6a23c; font-weight: 600; }
@@ -196,4 +286,8 @@ async function handleBuy() {
 .detail-desc { background: #fff; padding: 24px; border-radius: 8px; }
 .detail-desc h3 { font-size: 16px; margin-bottom: 12px; }
 .detail-desc p { color: #666; font-size: 14px; line-height: 1.8; }
+.desc-tabs { display: flex; gap: 0; border-bottom: 2px solid #f0f0f0; margin-bottom: 20px; }
+.desc-tabs span { padding: 10px 24px; cursor: pointer; font-size: 15px; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; }
+.desc-tabs span:hover { color: #ff6b35; }
+.desc-tabs span.active { color: #ff6b35; border-bottom-color: #ff6b35; font-weight: 600; }
 </style>

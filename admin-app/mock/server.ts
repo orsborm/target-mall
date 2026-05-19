@@ -3,31 +3,17 @@
  * Returns proper paginated data so all admin pages work during development.
  */
 import type { Plugin } from 'vite'
-
-function json(res: any, data: any) {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  res.end(JSON.stringify({ code: 0, msg: 'ok', data }))
-}
-
-function parseBody(req: any): Promise<any> {
-  return new Promise((resolve) => {
-    let body = ''
-    req.on('data', (chunk: string) => (body += chunk))
-    req.on('end', () => {
-      try { resolve(JSON.parse(body)) } catch { resolve({}) }
-    })
-  })
-}
-
-function paginated(list: any[], page: number, pageSize: number) {
-  const start = (page - 1) * pageSize
-  return {
-    list: list.slice(start, start + pageSize),
-    total: list.length,
-    page,
-    page_size: pageSize,
-  }
-}
+import {
+  getGoods, addGoods, addSkus,
+  updateGoodsStatus, updateGoods, updateSku, getGoodsDetail, deleteGoods,
+  queryGoods, getCategories, addCategory, updateCategory, deleteCategory as deleteCat,
+} from '../../shared/mock/goods-store'
+import { json, paginated, parseBody, enrichWithStock } from '../../shared/mock/helpers'
+import { getComments as getMockComments, addComment as addMockComment, deleteComment, getAllComments } from '../../shared/mock/comment-store'
+import { getFavorites, toggleFavorite, removeFavorites } from '../../shared/mock/favorite-store'
+import { getAllCoupons, createCoupon, updateCoupon, deleteCoupon as deleteAdminCoupon } from '../../shared/mock/coupon-store'
+import { getPageConfigs, addPageConfig, updatePageConfig, deletePageConfig } from '../../shared/mock/page-config-store'
+import { getFeedbacks, updateFeedbackStatus } from '../../shared/mock/feedback-store'
 
 // ---- mock data stores (in-memory, resets on restart) ----
 
@@ -42,21 +28,7 @@ const users: any[] = Array.from({ length: 32 }, (_, i) => ({
   created_at: new Date(2025, 0, i + 1).toISOString(),
 }))
 
-const goods: any[] = Array.from({ length: 25 }, (_, i) => ({
-  id: i + 1,
-  spu_code: `SPU00${i + 1}`,
-  name: `商品${i + 1} — ${['机械键盘', '无线鼠标', '显示器', '耳机', '充电器'][i % 5]}`,
-  subtitle: `${['Cherry轴', '静音微动', '4K分辨率', '降噪', '快充'][i % 5]} 高品质`,
-  category_id: (i % 4) + 1,
-  brand: ['罗技', '戴尔', '华为', '小米', '索尼'][i % 5],
-  main_image: `https://picsum.photos/seed/goods${i + 1}/200/200`,
-  images: [],
-  min_price: ((i % 10) + 1) * 10000,
-  max_price: ((i % 10) + 3) * 12000,
-  sales: (i + 1) * 7,
-  status: i < 22 ? 1 : 0,
-  created_at: new Date(2025, 3, i + 1).toISOString(),
-}))
+const seedGoods = getGoods()
 
 const orders: any[] = Array.from({ length: 18 }, (_, i) => ({
   id: i + 1,
@@ -71,23 +43,23 @@ const orders: any[] = Array.from({ length: 18 }, (_, i) => ({
   user_id: (i % 5) + 1,
   username: `user${(i % 5) + 1}`,
   items: [{
-    id: i * 2 + 1, sku_id: i + 1, spu_name: goods[i % goods.length]?.name || '商品',
+    id: i * 2 + 1, sku_id: i + 1, spu_name: seedGoods[i % seedGoods.length]?.name || '商品',
     price: 29900, quantity: (i % 3) + 1, total_amount: ((i % 3) + 1) * 29900,
-    main_image: goods[i % goods.length]?.main_image || '',
+    main_image: seedGoods[i % seedGoods.length]?.main_image || '',
   }],
-  created_at: new Date(2025, 4, 14 - i).toISOString(),
-  paid_at: i < 16 ? new Date(2025, 4, 14 - i, 1).toISOString() : null,
+  created_at: new Date(Date.now() - (18 - i) * 86400000).toISOString(),
+  paid_at: i < 16 ? new Date(Date.now() - (16 - i) * 86400000).toISOString() : null,
   shipping_company: i < 12 ? ['顺丰速运', '中通快递', '圆通速递'][i % 3] : '',
   tracking_no: i < 12 ? `SF${Date.now() - i * 10000}` : '',
-  shipped_at: i < 12 ? new Date(2025, 4, 15 - i).toISOString() : null,
+  shipped_at: i < 12 ? new Date(Date.now() - (12 - i) * 86400000).toISOString() : null,
   refund: i % 6 === 5 ? { refund_amount: 29900, reason: '商品质量问题', description: '收到后发现屏幕有坏点', status: 0, reject_reason: '' } : null,
 }))
 
 const logFiles = [
-  { name: 'user-service.log', path: 'user/user-service.log', service: 'user', size_bytes: 245760, size_mb: 0.234, modified_at: new Date().toISOString() },
-  { name: 'goods-service.log', path: 'goods/goods-service.log', service: 'goods', size_bytes: 512000, size_mb: 0.488, modified_at: new Date().toISOString() },
-  { name: 'order-service.log', path: 'order/order-service.log', service: 'order', size_bytes: 1048576, size_mb: 1.0, modified_at: new Date().toISOString() },
-  { name: 'sys-service.log', path: 'sys/sys-service.log', service: 'sys', size_bytes: 81920, size_mb: 0.078, modified_at: new Date().toISOString() },
+  { name: 'user-service.log', path: 'user/user-service.log', service: 'user', size: 245760, size_bytes: 245760, size_mb: 0.234, modified: new Date().toISOString(), modified_at: new Date().toISOString() },
+  { name: 'goods-service.log', path: 'goods/goods-service.log', service: 'goods', size: 512000, size_bytes: 512000, size_mb: 0.488, modified: new Date().toISOString(), modified_at: new Date().toISOString() },
+  { name: 'order-service.log', path: 'order/order-service.log', service: 'order', size: 1048576, size_bytes: 1048576, size_mb: 1.0, modified: new Date().toISOString(), modified_at: new Date().toISOString() },
+  { name: 'sys-service.log', path: 'sys/sys-service.log', service: 'sys', size: 81920, size_bytes: 81920, size_mb: 0.078, modified: new Date().toISOString(), modified_at: new Date().toISOString() },
 ]
 
 const logLines = (service: string, lines: number) =>
@@ -127,24 +99,112 @@ export function adminMockPlugin(): Plugin {
         json(res, { msg: 'ok' })
       })
 
-      // --- Goods management (admin operations only — list goes through real API) ---
-      server.middlewares.use('/api/v1/goods/spu/', async (req, res, next) => {
-        const statusMatch = req.url!.match(/^\/(\d+)\/status$/)
-        const editMatch = req.url!.match(/^\/(\d+)$/)
-        if (!statusMatch && !editMatch) return next()
-        if (req.method !== 'PUT') return next()
+      // --- Goods management (via shared store) ---
+      server.middlewares.use('/api/v1/goods/spu', async (req, res, next) => {
+        const url = req.url!
+        const method = req.method!
 
-        const id = parseInt((statusMatch || editMatch)![1])
-        const body = await parseBody(req)
-        const g = goods.find(g => g.id === id)
-        if (!g) { res.statusCode = 404; return json(res, {}) }
-
-        if (statusMatch) {
-          g.status = body.status
-        } else {
-          Object.assign(g, body)
+        // GET list
+        if (url === '/list' || url.startsWith('/list?')) {
+          const u = new URL(url, 'http://localhost')
+          const page = Math.max(1, parseInt(u.searchParams.get('page') || '1') || 1)
+          const pageSize = Math.min(100, Math.max(1, parseInt(u.searchParams.get('page_size') || '20') || 20))
+          const rawCat = u.searchParams.get('category_id')
+          const categoryId = rawCat !== null && rawCat !== '' ? Number(rawCat) : undefined
+          const list = queryGoods({
+            keyword: u.searchParams.get('keyword') || undefined,
+            category_id: categoryId,
+            status: u.searchParams.has('status') ? Number(u.searchParams.get('status')) : undefined,
+            sort: u.searchParams.get('sort') || undefined,
+          })
+          return json(res, paginated(enrichWithStock(list), page, pageSize))
         }
-        json(res, { msg: 'ok' })
+
+        // POST create
+        if (url === '' || url === '/') {
+          if (method !== 'POST') return next()
+          const body = await parseBody(req)
+          const g = addGoods(body)
+          if (Array.isArray(body.skus) && body.skus.length > 0) {
+            addSkus(g.id, body.skus)
+          }
+          return json(res, { id: g.id, msg: 'ok' })
+        }
+
+        const statusMatch = url.match(/^\/(\d+)\/status$/)
+        const skusMatch = url.match(/^\/(\d+)\/skus$/)
+        const detailMatch = url.match(/^\/(\d+)$/)
+
+        if (statusMatch && method === 'PUT') {
+          const id = parseInt(statusMatch[1])
+          const ok = updateGoodsStatus(id, (await parseBody(req)).status)
+          if (!ok) { res.statusCode = 404; return json(res, {}) }
+          return json(res, { msg: 'ok' })
+        }
+
+        if (skusMatch && method === 'PUT') {
+          const spuId = parseInt(skusMatch[1])
+          const body = await parseBody(req)
+          if (Array.isArray(body.skus)) {
+            for (const s of body.skus) {
+              updateSku(spuId, s.id, { main_image: s.main_image, price: s.price })
+            }
+          }
+          return json(res, { msg: 'ok' })
+        }
+
+        if (detailMatch) {
+          const id = parseInt(detailMatch[1])
+          if (method === 'GET') {
+            const detail = getGoodsDetail(id)
+            if (!detail.spu) { res.statusCode = 404; return json(res, {}) }
+            return json(res, detail)
+          }
+          if (method === 'PUT') {
+            const body = await parseBody(req)
+            const ok = updateGoods(id, body)
+            if (!ok) { res.statusCode = 404; return json(res, {}) }
+            return json(res, { msg: 'ok' })
+          }
+          if (method === 'DELETE') {
+            const ok = deleteGoods(id)
+            if (!ok) { res.statusCode = 404; return json(res, {}) }
+            return json(res, { msg: 'ok' })
+          }
+          return next()
+        }
+
+        next()
+      })
+
+      // --- Category CRUD ---
+      server.middlewares.use('/api/v1/goods/category', async (req, res, next) => {
+        const url = req.url!
+        const method = req.method!
+        if (url === '/tree' || url === '/tree/') {
+          return json(res, getCategories())
+        }
+        if ((url === '' || url === '/') && method === 'POST') {
+          const body = await parseBody(req)
+          const cat = addCategory({
+            name: body.name, icon: body.icon || '', parent_id: body.parent_id || 0,
+            level: body.level || 1, sort_order: body.sort_order || 1,
+          })
+          return json(res, cat)
+        }
+        const match = url.match(/^\/(\d+)$/)
+        if (match && method === 'PUT') {
+          const body = await parseBody(req)
+          const ok = updateCategory(parseInt(match[1]), body)
+          if (!ok) { res.statusCode = 404; return json(res, {}) }
+          return json(res, { msg: 'ok' })
+        }
+        if (match && method === 'DELETE') {
+          const ok = deleteCat(parseInt(match[1]))
+          if (!ok) { res.statusCode = 404; return json(res, {}) }
+          return json(res, { msg: 'ok' })
+        }
+        next()
       })
 
       // --- Order admin operations ---
@@ -175,17 +235,134 @@ export function adminMockPlugin(): Plugin {
         json(res, { msg: 'ok' })
       })
 
+      // --- Comments / Reviews ---
+      server.middlewares.use('/api/v1/goods/comment', async (req, res, next) => {
+        const url = req.url!
+        const method = req.method!
+        if (url === '/list' || url.startsWith('/list?')) {
+          const u = new URL(url, 'http://localhost')
+          const page = parseInt(u.searchParams.get('page') || '1')
+          const pageSize = parseInt(u.searchParams.get('page_size') || '20')
+          const spuIdRaw = u.searchParams.get('spu_id')
+          const spuId = spuIdRaw ? parseInt(spuIdRaw) : undefined
+          return json(res, getAllComments(spuId, page, pageSize))
+        }
+        if (url === '' || url === '/') {
+          if (method === 'POST') {
+            const body = await parseBody(req)
+            if (!body.spu_id || !body.content) { res.statusCode = 400; return json(res, { msg: '缺少参数' }) }
+            const c = addMockComment({ spu_id: body.spu_id, user_id: body.user_id || 1, username: body.username || '匿名用户', rating: body.rating || 5, content: body.content, images: body.images || [] })
+            return json(res, c)
+          }
+        }
+        const match = url.match(/^\/(\d+)$/)
+        if (match && method === 'DELETE') {
+          deleteComment(parseInt(match[1]))
+          return json(res, { msg: 'ok' })
+        }
+        next()
+      })
+      server.middlewares.use('/api/v1/goods/spu', (req, res, next) => {
+        const url = req.url!
+        const commentsMatch = url.match(/^\/(\d+)\/comments$/)
+        if (commentsMatch && req.method === 'GET') {
+          const u = new URL(url, 'http://localhost')
+          const page = parseInt(u.searchParams.get('page') || '1')
+          const pageSize = parseInt(u.searchParams.get('page_size') || '20')
+          return json(res, getMockComments(parseInt(commentsMatch[1]), page, pageSize))
+        }
+        next()
+      })
+
+      // --- Favorites ---
+      server.middlewares.use('/api/v1/user/favorites', (req, res) => {
+        const u = new URL(req.url!, 'http://localhost')
+        json(res, getFavorites(parseInt(u.searchParams.get('user_id') || '1')))
+      })
+      server.middlewares.use('/api/v1/user/favorite', async (req, res) => {
+        if (req.method !== 'POST' && req.method !== 'DELETE') {
+          res.statusCode = 405; return json(res, { msg: 'Method not allowed' })
+        }
+        const body = await parseBody(req)
+        if (req.method === 'DELETE') {
+          removeFavorites(body.user_id || 1, body.spu_ids || [])
+          return json(res, { msg: 'ok' })
+        }
+        const result = toggleFavorite(body.user_id || 1, body.spu_id)
+        json(res, { favorited: result })
+      })
+
+      // --- Coupons (admin) ---
+      server.middlewares.use('/api/v1/sys/coupon', async (req, res, next) => {
+        const url = req.url!
+        const method = req.method!
+        if (url === '/list' || url === '/list?') {
+          return json(res, getAllCoupons())
+        }
+        if (url === '' || url === '/') {
+          if (method === 'POST') {
+            const body = await parseBody(req)
+            return json(res, createCoupon(body))
+          }
+        }
+        const match = url.match(/^\/(\d+)$/)
+        const statusMatch = url.match(/^\/(\d+)\/status$/)
+        if (match && method === 'PUT') {
+          const body = await parseBody(req)
+          updateCoupon(parseInt(match[1]), body)
+          return json(res, { msg: 'ok' })
+        }
+        if (statusMatch && method === 'PUT') {
+          const body = await parseBody(req)
+          updateCoupon(parseInt(statusMatch[1]), { status: body.status })
+          return json(res, { msg: 'ok' })
+        }
+        if (match && method === 'DELETE') {
+          deleteAdminCoupon(parseInt(match[1]))
+          return json(res, { msg: 'ok' })
+        }
+        next()
+      })
+
+      // --- Page Configs (banners) ---
+      server.middlewares.use('/api/v1/sys/page-config', async (req, res, next) => {
+        const url = req.url!
+        const method = req.method!
+        const match = url.match(/^\/([a-z_]+)$/)
+        if (match && method === 'GET') {
+          return json(res, getPageConfigs(match[1]))
+        }
+        if ((url === '' || url === '/') && method === 'POST') {
+          const body = await parseBody(req)
+          return json(res, addPageConfig(body))
+        }
+        const idMatch = url.match(/^\/(\d+)$/)
+        if (idMatch && method === 'PUT') {
+          const body = await parseBody(req)
+          updatePageConfig(parseInt(idMatch[1]), body)
+          return json(res, { msg: 'ok' })
+        }
+        if (idMatch && method === 'DELETE') {
+          deletePageConfig(parseInt(idMatch[1]))
+          return json(res, { msg: 'ok' })
+        }
+        next()
+      })
+
       // --- Dashboard ---
       server.middlewares.use('/api/v1/sys/dashboard/overview', (_req, res) => {
-        const today = new Date().toISOString().slice(0, 10)
         json(res, {
-          total_goods: goods.length,
+          total_goods: getGoods().length,
           total_users: users.length,
           total_orders: orders.length,
-          today_orders: orders.filter(o => (o.created_at || '').startsWith(today)).length,
+          today_orders: orders.filter(o => {
+            const d = new Date(o.created_at || 0)
+            const t = new Date()
+            return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
+          }).length,
           pending_orders: orders.filter(o => o.status === 'pending_payment' || o.status === 'paid').length,
           total_revenue: orders
-            .filter(o => ['paid', 'shipped', 'received', 'completed', 'refunding', 'refunded'].includes(o.status))
+            .filter(o => ['paid', 'shipped', 'received', 'completed', 'refunding'].includes(o.status))
             .reduce((s: number, o: any) => s + o.pay_amount, 0),
         })
       })
@@ -220,10 +397,12 @@ export function adminMockPlugin(): Plugin {
         const url = new URL(req.url!, 'http://localhost')
         const service = url.searchParams.get('service') || ''
         const lines = parseInt(url.searchParams.get('lines') || '200')
-        const all = logLines(service || 'all', lines)
+        const offset = parseInt(url.searchParams.get('offset') || '0')
+        const all = logLines(service || 'all', lines + offset)
+        const chunk = all.slice(offset, offset + lines)
         json(res, {
           service: service || 'all', file: `${service || 'all'}-service.log`,
-          lines: all, total_lines: 10000, offset: 0, count: all.length,
+          lines: chunk, total_lines: 10000, offset, count: chunk.length,
         })
       })
 
@@ -269,6 +448,27 @@ export function adminMockPlugin(): Plugin {
       // --- Captcha (already works but provide fallback) ---
       server.middlewares.use('/api/v1/sys/common/captcha', (_req, res) => {
         json(res, { captcha_id: 'mock-captcha-id', captcha_image: 'data:image/svg+xml;base64,' })
+      })
+
+      // --- Feedback management ---
+      server.middlewares.use('/api/v1/msg/feedback', async (req, res, next) => {
+        const url = req.url!
+        const method = req.method!
+        if (url === '/list' || url.startsWith('/list?')) {
+          const u = new URL(url, 'http://localhost')
+          const page = parseInt(u.searchParams.get('page') || '1')
+          const pageSize = parseInt(u.searchParams.get('page_size') || '20')
+          const type = u.searchParams.get('type') || undefined
+          return json(res, getFeedbacks(page, pageSize, type))
+        }
+        const statusMatch = url.match(/^\/(\d+)\/status$/)
+        if (statusMatch && method === 'PUT') {
+          const body = await parseBody(req)
+          const ok = updateFeedbackStatus(parseInt(statusMatch[1]), body.status)
+          if (!ok) { res.statusCode = 404; return json(res, {}) }
+          return json(res, { msg: 'ok' })
+        }
+        next()
       })
     },
   }

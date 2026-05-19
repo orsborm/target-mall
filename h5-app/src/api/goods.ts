@@ -62,3 +62,23 @@ export function getRecommendGoods(params?: { page_size?: number }) {
 export function getCategoryTree() {
   return request.get<GoodsCategory[]>('/goods/category/tree')
 }
+
+// ---- Reviews / Comments ----
+export interface CommentItem {
+  id: number; spu_id: number; user_id: number; username: string
+  rating: number; content: string; images: string[]; created_at: string
+}
+export function getComments(spuId: number, params?: { page?: number; page_size?: number }) {
+  return request.get<{ list: CommentItem[]; total: number; avgRating: number }>(`/goods/spu/${spuId}/comments`, { params })
+}
+export function postComment(data: { spu_id: number; user_id: number; username: string; rating: number; content: string; images?: string[] }) {
+  return request.post<CommentItem>('/goods/comment/', data)
+}
+
+// ---- Favorites ----
+export function getFavorites(userId: number) {
+  return request.get<number[]>(`/user/favorites?user_id=${userId}`)
+}
+export function toggleFavoriteApi(userId: number, spuId: number) {
+  return request.post<{ favorited: boolean }>('/user/favorite', { user_id: userId, spu_id: spuId })
+}

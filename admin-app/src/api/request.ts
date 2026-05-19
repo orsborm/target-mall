@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { deepFixEncoding } from '@/utils/encoding'
 import { useAdminStore } from '@/stores/user'
+import { refreshAdminToken } from './auth'
 
 interface ApiResponse<T = any> {
   code: number
@@ -18,32 +19,34 @@ const service: AxiosInstance = axios.create({
 })
 
 let isRefreshing = false
-let refreshSubscribers: ((token: string) => void)[] = []
+interface PendingSubscriber {
+  resolve: (value: any) => void
+  reject: (reason: any) => void
+  config: InternalAxiosRequestConfig & { _retry?: boolean }
+}
+let refreshSubscribers: PendingSubscriber[] = []
 
 function onRefreshed(token: string) {
-  refreshSubscribers.forEach((cb) => cb(token))
+  refreshSubscribers.forEach((s) => {
+    s.config.headers.Authorization = `Bearer ${token}`
+    s.resolve(service(s.config))
+  })
   refreshSubscribers = []
 }
 
-function addRefreshSubscriber(cb: (token: string) => void) {
-  refreshSubscribers.push(cb)
+function rejectSubscribers(err: Error) {
+  refreshSubscribers.forEach((s) => s.reject(err))
+  refreshSubscribers = []
+}
+
+function addRefreshSubscriber(sub: PendingSubscriber) {
+  refreshSubscribers.push(sub)
 }
 
 async function tryRefreshToken(): Promise<string | null> {
   const store = useAdminStore()
   if (!store.refreshToken) return null
-  try {
-    const res = await axios.post(
-      `${import.meta.env.VITE_API_BASE}/user/auth/refresh-token`,
-      { refresh_token: store.refreshToken },
-    )
-    if (res.data?.code === 0 && res.data?.data?.access_token) {
-      return res.data.data.access_token
-    }
-    return null
-  } catch {
-    return null
-  }
+  return refreshAdminToken(store.refreshToken)
 }
 
 service.interceptors.request.use(
@@ -59,6 +62,11 @@ service.interceptors.request.use(
 
 service.interceptors.response.use(
   (response: AxiosResponse<ApiResponse>) => {
+    // Bypass JSON-envelope parsing for blob responses (e.g. file downloads)
+    if (response.config.responseType === 'blob') {
+      return response.data
+    }
+
     const res = response.data
 
     if (res.code === 0) {
@@ -88,11 +96,8 @@ service.interceptors.response.use(
       }
 
       if (isRefreshing) {
-        return new Promise((resolve) => {
-          addRefreshSubscriber((token: string) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`
-            resolve(service(originalRequest))
-          })
+        return new Promise((resolve, reject) => {
+          addRefreshSubscriber({ resolve, reject, config: originalRequest })
         })
       }
 
@@ -109,7 +114,7 @@ service.interceptors.response.use(
       }
 
       isRefreshing = false
-      refreshSubscribers = []
+      rejectSubscribers(new Error('Token refresh failed'))
       store.logout()
       router.push('/login')
       ElMessage.error('登录已过期，请重新登录')

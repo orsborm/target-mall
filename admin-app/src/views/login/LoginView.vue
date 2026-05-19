@@ -50,7 +50,8 @@ async function handleLogin() {
     })
     adminStore.setAuth(res.access_token, res.refresh_token, res.user_info)
     ElMessage.success('登录成功')
-    router.replace((route.query.redirect as string) || '/')
+    const redirect = (route.query.redirect as string) || '/'
+    router.replace(redirect.startsWith('/') ? redirect : '/')
   } catch {
     fetchCaptcha()
     form.captcha_code = ''

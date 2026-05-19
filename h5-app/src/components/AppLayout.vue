@@ -4,8 +4,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useCartStore } from '@/stores/cart'
 import { getCartCount } from '@/api/cart'
-import { logout as apiLogout } from '@/api/user'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
+import { useLogout } from '@/composables/useLogout'
 import { Search, ShoppingCartFull, ShoppingCart } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -21,9 +21,11 @@ const isLoggedIn = computed(() => userStore.isLoggedIn)
 const userInfo = computed(() => userStore.userInfo)
 const activeNav = computed(() => {
   if (route.path.startsWith('/goods')) return 'goods'
+  if (route.path.startsWith('/coupon')) return 'coupon'
   if (route.path.startsWith('/order')) return 'order'
   if (route.path.startsWith('/cart')) return 'cart'
   if (route.path.startsWith('/user')) return 'user'
+  if (route.path.startsWith('/feedback')) return 'feedback'
   return 'home'
 })
 
@@ -41,15 +43,7 @@ function onSearch() {
   }
 }
 
-async function handleLogout() {
-  try {
-    await ElMessageBox.confirm('确定退出登录吗？', '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
-  } catch { return }
-  try { await apiLogout() } catch { /* ignore */ }
-  userStore.logout()
-  ElMessage.success('已退出登录')
-  router.push('/login')
-}
+const { handleLogout } = useLogout()
 </script>
 
 <template>
@@ -106,9 +100,10 @@ async function handleLogout() {
       <div class="app-nav__inner">
         <router-link to="/" class="nav-item" :class="{ active: activeNav === 'home' }">首页</router-link>
         <router-link to="/goods/list" class="nav-item" :class="{ active: activeNav === 'goods' }">全部商品</router-link>
+        <router-link to="/user/coupons" class="nav-item" :class="{ active: activeNav === 'coupon' }">领券中心</router-link>
         <router-link to="/cart" class="nav-item" :class="{ active: activeNav === 'cart' }">购物车</router-link>
         <router-link to="/order/list" class="nav-item" :class="{ active: activeNav === 'order' }">我的订单</router-link>
-        <router-link to="/feedback" class="nav-item" :class="{ active: activeNav === route.path && 'active' }">意见反馈</router-link>
+        <router-link to="/feedback" class="nav-item" :class="{ active: activeNav === 'feedback' }">意见反馈</router-link>
       </div>
     </div>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
+import PaginationWrap from '@/components/PaginationWrap.vue'
 import { getOrderList, processRefund, updateShipping, updateRemark, ORDER_STATUS_MAP } from '@/api/order-mgmt'
 import type { AdminOrder } from '@/api/order-mgmt'
 import { formatPrice, formatDate } from '@/utils/format'
@@ -60,6 +61,7 @@ async function handleShipping() {
   if (!shippingForm.value.company.trim() || !shippingForm.value.tracking_no.trim()) {
     ElMessage.warning('请输入物流公司和快递单号'); return
   }
+  if (shippingForm.value.tracking_no.trim().length < 3) { ElMessage.warning('快递单号至少3位'); return }
   try {
     await ElMessageBox.confirm(
       `确认发货？物流: ${shippingForm.value.company}, 单号: ${shippingForm.value.tracking_no}`,
@@ -122,7 +124,7 @@ const tabs = [
 async function loadOrders() {
   loading.value = true
   try {
-    const params: any = { page: page.value, page_size: pageSize }
+    const params: Record<string, string | number> = { page: page.value, page_size: pageSize }
     if (activeStatus.value) params.status = activeStatus.value
     if (searchKeyword.value.trim()) params.keyword = searchKeyword.value.trim()
     const res = await getOrderList(params)
@@ -157,7 +159,7 @@ onMounted(loadOrders)
       <el-table-column prop="username" label="用户" width="120" />
       <el-table-column label="状态" width="90">
         <template #default="{ row }">
-          <el-tag :type="(ORDER_STATUS_MAP[row.status]?.type as any) || 'info'" size="small">
+          <el-tag :type="ORDER_STATUS_MAP[row.status]?.type || 'info'" size="small">
             {{ ORDER_STATUS_MAP[row.status]?.text || row.status }}
           </el-tag>
         </template>
@@ -198,7 +200,7 @@ onMounted(loadOrders)
     </el-table>
 
     <div style="display:flex;justify-content:center;margin-top:16px" v-if="total > pageSize">
-      <el-pagination background layout="prev, pager, next" :total="total" :page-size="pageSize" :current-page="page" @current-change="changePage" />
+      <PaginationWrap :total="total" :page-size="pageSize" :page="page" @page-change="changePage" />
     </div>
 
     <el-empty v-if="!loading && orders.length === 0" description="暂无订单" />
@@ -209,7 +211,7 @@ onMounted(loadOrders)
         <el-descriptions :column="2" border>
           <el-descriptions-item label="订单号">{{ currentOrder.order_no }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="(ORDER_STATUS_MAP[currentOrder.status]?.type as any) || 'info'" size="small">
+            <el-tag :type="ORDER_STATUS_MAP[currentOrder.status]?.type || 'info'" size="small">
               {{ ORDER_STATUS_MAP[currentOrder.status]?.text || currentOrder.status }}
             </el-tag>
           </el-descriptions-item>
@@ -289,6 +291,4 @@ onMounted(loadOrders)
 </template>
 
 <style scoped>
-.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-.page-header h2{font-size:20px}
 </style>

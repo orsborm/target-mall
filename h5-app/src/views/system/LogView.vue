@@ -46,7 +46,7 @@ async function loadAll() {
     status.value = s
     size.value = sz
     files.value = fl
-  } catch { /* ignore */ } finally {
+  } catch { ElMessage.error('加载日志概览失败') } finally {
     loading.value = false
   }
 }
@@ -90,7 +90,7 @@ async function handleErrors() {
     if (readService.value) params.service = readService.value
     logContent.value = await getLogErrors(params)
   } catch (e: any) {
-    ElMessage.error(e?.message || '暂无错误日志')
+    ElMessage.error(e?.message || '加载错误日志失败')
   } finally {
     contentLoading.value = false
   }
@@ -125,7 +125,7 @@ async function handleClearAll() {
     ElMessage.success(`已清除 ${res.cleared_files} 个日志文件`)
     loadAll()
     logContent.value = null
-  } catch { /* ignore */ }
+  } catch { ElMessage.error('清除日志失败') }
 }
 
 async function handleDeleteService(serviceName: string) {
@@ -137,7 +137,7 @@ async function handleDeleteService(serviceName: string) {
     await deleteServiceLog(serviceName)
     ElMessage.success(`已删除 ${serviceName} 日志`)
     loadAll()
-  } catch { /* ignore */ }
+  } catch { ElMessage.error(`删除 ${serviceName} 日志失败`) }
 }
 
 function formatSize(bytes: number): string {

@@ -79,6 +79,12 @@ const router = createRouter({
       meta: { title: '消息通知', auth: true },
     },
     {
+      path: '/user/coupons',
+      name: 'user-coupons',
+      component: () => import('@/views/user/CouponCenterView.vue'),
+      meta: { title: '领券中心', auth: true },
+    },
+    {
       path: '/feedback',
       name: 'feedback',
       component: () => import('@/views/feedback/FeedbackView.vue'),
@@ -92,7 +98,9 @@ const router = createRouter({
     },
     {
       path: '/:pathMatch(.*)*',
-      redirect: '/',
+      name: 'not-found',
+      component: () => import('@/views/system/NotFoundView.vue'),
+      meta: { title: '页面未找到' },
     },
   ],
 })
@@ -100,10 +108,7 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const userStore = useUserStore()
 
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE || 'H5靶机商城'}`
-  }
-
+  // Run auth checks BEFORE setting title, so redirects don't leak page titles
   if (to.meta.auth && !userStore.isLoggedIn) {
     ElMessage.warning('请先登录')
     next({ name: 'login', query: { redirect: to.fullPath } })
@@ -121,6 +126,9 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
+  if (to.meta.title) {
+    document.title = `${to.meta.title} - ${import.meta.env.VITE_APP_TITLE || 'H5靶机商城'}`
+  }
   next()
 })
 

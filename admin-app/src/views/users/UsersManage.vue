@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
+import PaginationWrap from '@/components/PaginationWrap.vue'
 import { getUserList, updateUserStatus } from '@/api/user-mgmt'
 import type { UserItem } from '@/api/user-mgmt'
 import { formatDate } from '@/utils/format'
@@ -71,14 +72,12 @@ onMounted(loadUsers)
     </el-table>
 
     <div style="display:flex;justify-content:center;margin-top:16px" v-if="total > pageSize">
-      <el-pagination background layout="prev, pager, next" :total="total" :page-size="pageSize" :current-page="page" @current-change="changePage" />
+      <PaginationWrap :total="total" :page-size="pageSize" :page="page" @page-change="changePage" />
     </div>
 
-    <el-empty v-if="!loading && users.length === 0" description="暂无用户数据（后端接口待创建）" />
+    <el-empty v-if="!loading && users.length === 0" description="暂无用户数据" />
   </AdminLayout>
 </template>
 
 <style scoped>
-.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-.page-header h2{font-size:20px}
 </style>

@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { getGoodsList, getCategoryTree } from '@/api/goods'
-import type { GoodsItem, GoodsCategory } from '@/api/goods'
+import type { GoodsItem, GoodsCategory, GoodsListParams } from '@/api/goods'
 import SafeImage from '@/components/SafeImage.vue'
 import { formatPrice } from '@/utils/format'
 
 const route = useRoute()
+const router = useRouter()
 
 const goodsList = ref<GoodsItem[]>([])
 const categories = ref<GoodsCategory[]>([])
@@ -14,7 +15,7 @@ const loading = ref(false)
 const error = ref('')
 const page = ref(1)
 const total = ref(0)
-const activeCategory = ref<number>(0)
+const activeCategory = ref<number>(Number(route.query.category_id) || 0)
 const sortBy = ref('')
 const keyword = ref((route.query.keyword as string) || '')
 const pageSize = 20
@@ -32,7 +33,7 @@ async function loadGoods(reset = false) {
       page: page.value,
       page_size: pageSize,
       ...(activeCategory.value > 0 ? { category_id: activeCategory.value } : {}),
-      ...(sortBy.value ? { sort: sortBy.value as any } : {}),
+      ...(sortBy.value ? { sort: sortBy.value as GoodsListParams['sort'] } : {}),
       ...(keyword.value.trim() ? { keyword: keyword.value.trim() } : {}),
     })
     if (reset) goodsList.value = res.list
@@ -44,10 +45,14 @@ async function loadGoods(reset = false) {
 }
 
 function changePage(p: number) { page.value = p; loadGoods(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }
-function changeCategory(id: number) { activeCategory.value = id; loadGoods(true) }
+function changeCategory(id: number) { activeCategory.value = id; router.replace({ query: id > 0 ? { category_id: id } : {} }); loadGoods(true) }
 function changeSort(s: string) { sortBy.value = s; loadGoods(true) }
 
 onMounted(() => { loadCategories(); loadGoods(true) })
+watch(() => route.query.category_id, (v) => {
+  const id = Number(v) || 0
+  if (id !== activeCategory.value) { activeCategory.value = id; loadGoods(true) }
+})
 </script>
 
 <template>

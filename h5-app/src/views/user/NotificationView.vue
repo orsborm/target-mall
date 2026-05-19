@@ -26,12 +26,12 @@ async function loadMessages(reset = false) {
 
 async function handleItemClick(msg: MessageItem) {
   if (!msg.is_read) {
-    try { await markAsRead(msg.id); msg.is_read = true } catch { /* ignore */ }
+    try { await markAsRead(msg.id); msg.is_read = true } catch { ElMessage.error('标记已读失败') }
   }
 }
 
 async function handleReadAll() {
-  try { await markAllAsRead(); messages.value.forEach(m => m.is_read = true); ElMessage.success('全部已读') } catch { /* ignore */ }
+  try { await markAllAsRead(); messages.value.forEach(m => m.is_read = true); ElMessage.success('全部已读') } catch { ElMessage.error('全部标为已读失败') }
 }
 
 function changePage(p: number) { page.value = p; loadMessages(true) }

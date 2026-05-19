@@ -44,3 +44,7 @@ Desktop.ini
 # TypeScript
 *.tsbuildinfo
 auth_service_backup.py
+
+# Mock runtime data (regenerated from seed on dev server start)
+shared/mock/data/
+shared/mock/goods-data.json

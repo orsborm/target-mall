@@ -66,7 +66,7 @@ onMounted(() => loadOrders(true))
         <div v-for="order in orders" :key="order.id" class="order-card" @click="$router.push(`/order/${order.id}`)">
           <div class="order-card__header">
             <span>订单号: {{ order.order_no }}</span>
-            <el-tag :type="(ORDER_STATUS_MAP[order.status]?.type as any) || 'info'" size="small">
+            <el-tag :type="ORDER_STATUS_MAP[order.status]?.type || 'info'" size="small">
               {{ ORDER_STATUS_MAP[order.status]?.text || order.status }}
             </el-tag>
           </div>

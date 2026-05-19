@@ -16,7 +16,7 @@ export function getCaptcha() {
 }
 
 export function getPageConfig(pageKey: string) {
-  return request.get<{ key: string; type: string; value: string; label: string }[]>(
+  return request.get<{ key: string; type: string; value: string; label: string; link: string }[]>(
     `/sys/page-config/${pageKey}`,
   )
 }

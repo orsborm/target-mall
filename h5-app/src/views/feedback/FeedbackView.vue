@@ -8,9 +8,14 @@ const contact = ref('')
 const type = ref('suggest')
 const submitting = ref(false)
 
+const phoneRe = /^1\d{10}$/
+const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 async function handleSubmit() {
   if (!content.value.trim()) { ElMessage.warning('请输入反馈内容'); return }
   if (content.value.trim().length < 5) { ElMessage.warning('反馈内容至少5个字'); return }
+  const c = contact.value.trim()
+  if (c && !phoneRe.test(c) && !emailRe.test(c)) { ElMessage.warning('联系方式需为有效手机号或邮箱'); return }
   submitting.value = true
   try {
     await submitFeedback({ type: type.value, content: content.value.trim(), contact: contact.value.trim() || undefined })

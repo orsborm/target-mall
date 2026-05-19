@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
+import { h5MockPlugin } from './mock/server'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vue(), h5MockPlugin()],
   resolve: {
     alias: {
       '@/utils': resolve(__dirname, '../shared/utils'),

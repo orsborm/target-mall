@@ -2,7 +2,9 @@
 import { ref, onMounted } from 'vue'
 import AdminLayout from '@/components/AdminLayout.vue'
 import { getDashboardOverview } from '@/api/goods-mgmt'
+import type { DashboardOverview } from '@/api/goods-mgmt'
 import { formatPrice } from '@/utils/format'
+import { ElMessage } from 'element-plus'
 import { Goods, User, Document, ShoppingCart } from '@element-plus/icons-vue'
 
 const stats = ref({
@@ -17,16 +19,16 @@ const loading = ref(true)
 
 onMounted(async () => {
   try {
-    const data = await getDashboardOverview()
+    const data: DashboardOverview = await getDashboardOverview()
     stats.value = {
-      total_goods: (data as any).total_goods ?? null,
-      total_users: (data as any).total_users ?? null,
-      total_orders: (data as any).total_orders ?? null,
-      today_orders: (data as any).today_orders ?? null,
-      pending_orders: (data as any).pending_orders ?? null,
-      total_revenue: (data as any).total_revenue ?? null,
+      total_goods: data.total_goods ?? null,
+      total_users: data.total_users ?? null,
+      total_orders: data.total_orders ?? null,
+      today_orders: data.today_orders ?? null,
+      pending_orders: data.pending_orders ?? null,
+      total_revenue: data.total_revenue ?? null,
     }
-  } catch { /* 加载失败保持 '-' */ } finally { loading.value = false }
+  } catch { ElMessage.error('加载仪表盘数据失败') } finally { loading.value = false }
 })
 </script>
 

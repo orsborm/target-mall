@@ -30,10 +30,10 @@ async function loadCart() {
 }
 
 async function onToggleSelect(item: CartItem) {
-  try { await toggleCartItems([item.id], !item.checked); item.checked = !item.checked } catch { /* ignore */ }
+  try { await toggleCartItems([item.id], !item.checked); item.checked = !item.checked } catch { ElMessage.error('操作失败') }
 }
 async function onToggleAll() {
-  try { await toggleSelectAll(!isAllSelected.value); items.value.forEach(i => i.checked = !isAllSelected.value) } catch { /* ignore */ }
+  try { await toggleSelectAll(!isAllSelected.value); items.value.forEach(i => i.checked = !isAllSelected.value) } catch { ElMessage.error('操作失败') }
 }
 async function onQtyChange(item: CartItem, qty: number | undefined) {
   if (!qty || qty < 1) { qty = 1 }
@@ -47,17 +47,17 @@ async function onQtyChange(item: CartItem, qty: number | undefined) {
     await updateCartItem(item.id, { quantity: qty })
     cartStore.setCount(items.value.reduce((s, i) => s + i.quantity, 0))
   } catch {
-    item.quantity = prevQty
+    item.quantity = prevQty; ElMessage.error('修改数量失败')
   }
 }
 async function onDeleteItem(item: CartItem) {
   try { await ElMessageBox.confirm('确定删除该商品吗？', '提示', { type: 'warning' }) } catch { return }
-  try { await removeCartItems([item.id]); items.value = items.value.filter(i => i.id !== item.id); cartStore.setCount(items.value.reduce((s, i) => s + i.quantity, 0)); ElMessage.success('已删除') } catch { /* ignore */ }
+  try { await removeCartItems([item.id]); items.value = items.value.filter(i => i.id !== item.id); cartStore.setCount(items.value.reduce((s, i) => s + i.quantity, 0)); ElMessage.success('已删除') } catch { ElMessage.error('删除商品失败') }
 }
 async function onClearInvalid() {
   const invalidIds = items.value.filter(i => i.stock === 0 || i.stock < 0).map(i => i.id)
   if (invalidIds.length === 0) { ElMessage.info('没有失效商品'); return }
-  try { await removeCartItems(invalidIds); ElMessage.success('已清理'); loadCart() } catch { /* ignore */ }
+  try { await removeCartItems(invalidIds); ElMessage.success('已清理'); loadCart() } catch { ElMessage.error('清理失效商品失败') }
 }
 function onCheckout() {
   if (selectedItems.value.length === 0) { ElMessage.warning('请选择商品'); return }
@@ -121,6 +121,7 @@ onMounted(loadCart)
       <div class="cart-bottom-bar">
         <div class="cart-bottom__left">
           <el-button link @click="onClearInvalid">清理失效商品</el-button>
+          <router-link to="/user/coupons" style="font-size:12px;color:#ff6b35;margin-left:12px;text-decoration:none">领券</router-link>
         </div>
         <div class="cart-bottom__right">
           <span>已选 <b>{{ selectedItems.length }}</b> 件，合计:</span>

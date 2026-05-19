@@ -14,7 +14,8 @@ export interface AdminOrder {
   refund: { refund_amount: number; reason: string; description: string; status: number; reject_reason: string } | null
 }
 
-export const ORDER_STATUS_MAP: Record<string, { text: string; type: string }> = {
+type TagType = 'primary' | 'success' | 'warning' | 'danger' | 'info' | ''
+export const ORDER_STATUS_MAP: Record<string, { text: string; type: TagType }> = {
   pending_payment: { text: '待付款', type: 'danger' },
   paid: { text: '已付款', type: 'warning' },
   shipped: { text: '已发货', type: 'primary' },

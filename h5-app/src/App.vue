@@ -18,8 +18,11 @@ onMounted(async () => {
       ])
       userStore.setUserInfo(info)
       cartStore.setCount(cart.count)
-    } catch {
-      userStore.logout()
+    } catch (e: any) {
+      // Only logout on auth errors, not transient network failures
+      if (e?.response?.status === 401 || e?.code === 40101 || e?.code === 40102) {
+        userStore.logout()
+      }
     }
   }
 })

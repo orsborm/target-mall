@@ -2,10 +2,11 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { getUserInfo, updateProfile, logout } from '@/api/user'
+import { getUserInfo, updateProfile } from '@/api/user'
 import { getUnreadCount } from '@/api/msg'
 import type { UserInfo } from '@/api/user'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
+import { useLogout } from '@/composables/useLogout'
 import { Tickets, Location, Bell, ChatDotRound, Monitor } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -26,7 +27,7 @@ onMounted(async () => {
       getUnreadCount().catch(() => ({ count: 0 })),
     ])
     info.value = profile; userStore.setUserInfo(profile); unreadCount.value = unread.count
-  } catch { info.value = userStore.userInfo }
+  } catch { ElMessage.error('加载个人信息失败'); info.value = userStore.userInfo }
 })
 
 function openEdit() {
@@ -35,21 +36,22 @@ function openEdit() {
   showEdit.value = true
 }
 
+const phoneRe = /^1\d{10}$/
+const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 async function handleSave() {
   if (!editForm.value.nickname.trim()) { ElMessage.warning('昵称不能为空'); return }
+  if (editForm.value.phone.trim() && !phoneRe.test(editForm.value.phone.trim())) { ElMessage.warning('手机号格式不正确'); return }
+  if (editForm.value.email.trim() && !emailRe.test(editForm.value.email.trim())) { ElMessage.warning('邮箱格式不正确'); return }
   saving.value = true
   try {
     await updateProfile({ nickname: editForm.value.nickname.trim(), phone: editForm.value.phone.trim(), email: editForm.value.email.trim() })
     ElMessage.success('保存成功'); showEdit.value = false
     if (info.value) { info.value.nickname = editForm.value.nickname; info.value.phone = editForm.value.phone; info.value.email = editForm.value.email }
-  } catch { /* ignore */ } finally { saving.value = false }
+  } catch { ElMessage.error('保存个人信息失败') } finally { saving.value = false }
 }
 
-async function handleLogout() {
-  try { await ElMessageBox.confirm('确定退出登录吗？', '提示', { type: 'warning' }) } catch { return }
-  try { await logout() } catch { /* ignore */ }
-  userStore.logout(); ElMessage.success('已退出登录'); router.replace('/login')
-}
+const { handleLogout } = useLogout()
 </script>
 
 <template>
@@ -57,7 +59,7 @@ async function handleLogout() {
     <div class="page-header"><h2>个人中心</h2></div>
 
     <el-result v-if="error" icon="error" :title="error">
-      <template #extra><el-button type="primary" @click="window.location.reload()">刷新页面</el-button></template>
+      <template #extra><el-button type="primary" @click="error=''; getUserInfo().then(i => { if (i) { info = i; userStore.setUserInfo(i) } }).catch(() => { error = '重试失败' })">重试</el-button></template>
     </el-result>
     <div v-else class="profile-grid">
       <div class="profile-card">

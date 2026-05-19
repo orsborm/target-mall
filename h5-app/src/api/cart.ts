@@ -26,7 +26,7 @@ export async function getCartList(): Promise<CartItem[]> {
   const spuIds = [...new Set(items.map((i) => i.spu_id))]
 
   const details = await Promise.all(
-    spuIds.map((id) => getGoodsDetailFull(id).catch(() => null)),
+    spuIds.map((id) => getGoodsDetailFull(id).catch((e) => { if (import.meta.env.DEV) console.error(`Failed to fetch goods detail for SPU ${id}:`, e); return null })),
   )
 
   const goodsMap = new Map<number, { name: string; main_image: string; skus: Map<number, { price: number; stock: number }> }>()
@@ -71,6 +71,6 @@ export function toggleSelectAll(checked: boolean) {
 }
 
 export async function getCartCount() {
-  const items = await getCartList().catch(() => [] as CartItem[])
+  const items = await getCartList().catch((e) => { if (import.meta.env.DEV) console.error('Failed to fetch cart count:', e); return [] as CartItem[] })
   return { count: items.reduce((s, i) => s + i.quantity, 0) }
 }

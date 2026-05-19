@@ -4,7 +4,8 @@ import type { PageData } from './request'
 export type OrderStatus = 'pending_payment' | 'paid' | 'shipped' | 'received' | 'completed' | 'cancelled' | 'refunding' | 'refunded'
 export type PayMethod = 'wechat' | 'alipay'
 
-export const ORDER_STATUS_MAP: Record<string, { text: string; type: string }> = {
+export type TagType = 'primary' | 'success' | 'warning' | 'danger' | 'info' | ''
+export const ORDER_STATUS_MAP: Record<string, { text: string; type: TagType }> = {
   pending_payment: { text: '待付款', type: 'danger' },
   paid: { text: '已付款', type: 'warning' },
   shipped: { text: '已发货', type: 'primary' },
@@ -43,6 +44,8 @@ export interface OrderInfo {
   paid_at?: string
   shipped_at?: string
   remark?: string
+  shipping_company?: string
+  tracking_no?: string
 }
 
 export interface CreateOrderParams {
@@ -50,6 +53,7 @@ export interface CreateOrderParams {
   address_id: number
   pay_method: PayMethod
   remark?: string
+  coupon_id?: number
 }
 
 export interface OrderListParams {
