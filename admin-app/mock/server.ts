@@ -266,12 +266,14 @@ export function adminMockPlugin(): Plugin {
       // --- Admin order list (shared store) ---
       server.middlewares.use('/api/v1/order/admin/', async (req, res, next) => {
         if (!checkAuth(req, res)) return
-        const listMatch = req.url!.match(/^orders\/list/)
+        // req.url retains a leading '/' after Connect strips the mount prefix
+        const listMatch = req.url!.match(/^\/orders\/list/)
         if (!listMatch || req.method !== 'GET') return next()
         const u = new URL(req.url!, 'http://localhost')
         const page = parseInt(u.searchParams.get('page') || '1')
         const pageSize = parseInt(u.searchParams.get('page_size') || '20')
-        const all = getSharedOrders('all', undefined, 1, 1000)
+        // uid=0 returns orders for ALL users (admin sentinel)
+        const all = getSharedOrders(0, undefined, 1, 1000)
         return json(res, paginated(all.list, page, pageSize))
       })
 
