@@ -13,15 +13,32 @@ import { getPageConfigs as getPC } from '../../shared/mock/page-config-store'
 import { getOrders, getOrderDetail, createOrder as createMockOrder, updateOrderStatus, payOrder as payMockOrder } from '../../shared/mock/order-store'
 import { addFeedback } from '../../shared/mock/feedback-store'
 
+// ---- Captcha store (shared by auth and captcha endpoints) ----
+const captchaStore = new Map<string, string>()
+function generateCode(): string {
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
+
 export function h5MockPlugin(): Plugin {
   return {
     name: 'h5-mock-api',
     configureServer(server) {
-      // --- Auth stub (enables login/register without backend) ---
+      // --- Auth (login/register) with captcha validation ---
       server.middlewares.use('/api/v1/user/auth', async (req, res, next) => {
         const url = req.url!
         if ((url === '/login' || url === '/login/') && req.method === 'POST') {
           const body = await parseBody(req)
+          // Validate captcha
+          if (body.captcha_id) {
+            const stored = captchaStore.get(body.captcha_id)
+            if (!stored) {
+              return json(res, { msg: '验证码已过期，请刷新重试' }, -1)
+            }
+            if (stored !== String(body.captcha_code).trim()) {
+              return json(res, { msg: '验证码错误' }, -1)
+            }
+            captchaStore.delete(body.captcha_id)
+          }
           return json(res, {
             access_token: 'mock-token-' + Date.now(),
             refresh_token: 'mock-refresh-' + Date.now(),
@@ -326,6 +343,32 @@ export function h5MockPlugin(): Plugin {
           return json(res, { id: fb.id })
         }
         next()
+      })
+
+      // --- Captcha ---
+      // Stores a random 4-digit code keyed by captcha_id; the auth/login
+      // handler above validates the submitted code against this store.
+      server.middlewares.use('/api/v1/sys/common/captcha', (_req, res) => {
+        const code = generateCode()
+        const captchaId = 'mock-captcha-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
+        captchaStore.set(captchaId, code)
+        // Clean up expired entries (>5 min)
+        const now = Date.now()
+        for (const [k] of captchaStore) {
+          const ts = parseInt(k.split('-')[2]) || 0
+          if (now - ts > 300_000) captchaStore.delete(k)
+        }
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40">`
+          + `<rect width="120" height="40" fill="#f0f0f0"/>`
+          + `<text x="24" y="28" font-size="22" fill="#333" font-family="monospace">${code}</text>`
+          + `<line x1="10" y1="33" x2="110" y2="23" stroke="#ccc"/>`
+          + `<line x1="10" y1="24" x2="110" y2="20" stroke="#ccc"/>`
+          + `</svg>`
+        const b64 = Buffer.from(svg).toString('base64')
+        json(res, {
+          captcha_id: captchaId,
+          captcha_image: 'data:image/svg+xml;base64,' + b64,
+        })
       })
     },
   }

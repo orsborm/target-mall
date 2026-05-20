@@ -46,6 +46,12 @@ function checkAuth(req: any, res: any): boolean {
   return true
 }
 
+// ---- Captcha store: captcha_id → code mapping ----
+const captchaStore = new Map<string, string>()
+function generateCode(): string {
+  return String(Math.floor(1000 + Math.random() * 9000))
+}
+
 const logFiles = [
   { name: 'user-service.log', path: 'user/user-service.log', service: 'user', size: 245760, size_bytes: 245760, size_mb: 0.234, modified: new Date().toISOString(), modified_at: new Date().toISOString() },
   { name: 'goods-service.log', path: 'goods/goods-service.log', service: 'goods', size: 512000, size_bytes: 512000, size_mb: 0.488, modified: new Date().toISOString(), modified_at: new Date().toISOString() },
@@ -66,6 +72,30 @@ export function adminMockPlugin(): Plugin {
   return {
     name: 'admin-mock-api',
     configureServer(server) {
+      // --- Auth (login) — must be BEFORE /api/v1/user/ so login
+      //     requests aren't intercepted by the user-mgmt auth check ---
+      server.middlewares.use('/api/v1/user/auth', async (req, res, next) => {
+        const url = req.url!
+        if ((url === '/login' || url === '/login/') && req.method === 'POST') {
+          const body = await parseBody(req)
+          if (body.captcha_id) {
+            const stored = captchaStore.get(body.captcha_id)
+            if (!stored) return json(res, { msg: '验证码已过期，请刷新重试' }, -1)
+            if (stored !== String(body.captcha_code).trim()) return json(res, { msg: '验证码错误' }, -1)
+            captchaStore.delete(body.captcha_id)
+          }
+          const username = (body.username || '').trim()
+          if (!username) return json(res, { msg: '用户名不能为空' }, -1)
+          return json(res, {
+            access_token: 'admin-mock-token-' + Date.now(),
+            refresh_token: 'admin-mock-refresh-' + Date.now(),
+            expires_in: 7200,
+            user_info: { id: 1, username: username, nickname: '管理员', avatar: '', role_code: 'admin', status: 1, created_at: new Date().toISOString() },
+          })
+        }
+        next()
+      })
+
       // --- User management ---
       server.middlewares.use('/api/v1/user/list', async (req, res) => {
         if (!checkAuth(req, res)) return
@@ -461,11 +491,19 @@ export function adminMockPlugin(): Plugin {
       })
 
       // --- Captcha ---
-      // Backend accepts code "8888" as the universal bypass when Redis is
-      // unavailable (see auth_service_patch.py). Show this code in the SVG
-      // so the rendered captcha matches what the user must type.
+      // Generates a random 4-digit code, stores it by captcha_id, and
+      // returns an SVG image. The auth/login handler above validates the
+      // submitted code against the store.
       server.middlewares.use('/api/v1/sys/common/captcha', (_req, res) => {
-        const code = '8888'
+        const code = generateCode()
+        const captchaId = 'mock-captcha-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
+        captchaStore.set(captchaId, code)
+        // Clean up expired entries (>5 min old) on each generation
+        const now = Date.now()
+        for (const [k] of captchaStore) {
+          const ts = parseInt(k.split('-')[2]) || 0
+          if (now - ts > 300_000) captchaStore.delete(k)
+        }
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40">`
           + `<rect width="120" height="40" fill="#f0f0f0"/>`
           + `<text x="24" y="28" font-size="22" fill="#333" font-family="monospace">${code}</text>`
@@ -474,7 +512,7 @@ export function adminMockPlugin(): Plugin {
           + `</svg>`
         const b64 = Buffer.from(svg).toString('base64')
         json(res, {
-          captcha_id: 'mock-captcha-' + Date.now(),
+          captcha_id: captchaId,
           captcha_image: 'data:image/svg+xml;base64,' + b64,
         })
       })
