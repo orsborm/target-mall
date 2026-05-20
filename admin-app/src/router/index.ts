@@ -16,6 +16,7 @@ const router = createRouter({
     { path: '/coupons', name: 'coupons', component: () => import('@/views/marketing/CouponManage.vue'), meta: { title: '优惠券管理', auth: true } },
     { path: '/comments', name: 'comments', component: () => import('@/views/goods/CommentsManage.vue'), meta: { title: '评论管理', auth: true } },
     { path: '/feedbacks', name: 'feedbacks', component: () => import('@/views/feedback/FeedbackManage.vue'), meta: { title: '反馈管理', auth: true } },
+    { path: '/profile', name: 'profile', component: () => import('@/views/system/ProfileView.vue'), meta: { title: '个人设置', auth: true } },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/system/NotFoundView.vue'), meta: { title: '页面未找到' } },
   ],
 })

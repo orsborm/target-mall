@@ -14,6 +14,7 @@ import { getFavorites, toggleFavorite, removeFavorites } from '../../shared/mock
 import { getAllCoupons, createCoupon, updateCoupon, deleteCoupon as deleteAdminCoupon } from '../../shared/mock/coupon-store'
 import { getPageConfigs, addPageConfig, updatePageConfig, deletePageConfig } from '../../shared/mock/page-config-store'
 import { getFeedbacks, updateFeedbackStatus } from '../../shared/mock/feedback-store'
+import { getAllNotifications, createNotification, deleteAdminNotification } from '../../shared/mock/notification-store'
 import { getOrders as getSharedOrders, updateOrderStatus as updateSharedOrderStatus } from '../../shared/mock/order-store'
 // ^^^ Admin now uses the shared JSON-file-backed order store instead of its
 // own in-memory array, so orders created by h5-app users are visible to admin.
@@ -535,6 +536,39 @@ export function adminMockPlugin(): Plugin {
         if (statusMatch && method === 'PUT') {
           const body = await parseBody(req)
           const ok = updateFeedbackStatus(parseInt(statusMatch[1]), body.status)
+          if (!ok) { res.statusCode = 404; return json(res, {}) }
+          return json(res, { msg: 'ok' })
+        }
+        next()
+      })
+
+      // --- Notification management ---
+      server.middlewares.use('/api/v1/msg/notifications', async (req, res, next) => {
+        const url = req.url!
+        const method = req.method!
+        if (!['GET'].includes(method) && !checkAuth(req, res)) return
+
+        if (url === '/list' || url.startsWith('/list?')) {
+          const u = new URL(url, 'http://localhost')
+          const page = parseInt(u.searchParams.get('page') || '1')
+          const pageSize = parseInt(u.searchParams.get('page_size') || '20')
+          const type = u.searchParams.get('type') || undefined
+          return json(res, getAllNotifications(page, pageSize, type))
+        }
+        if ((url === '' || url === '/') && method === 'POST') {
+          const body = await parseBody(req)
+          if (!body.title?.trim()) { res.statusCode = 400; return json(res, { msg: '标题不能为空' }) }
+          if (!body.content?.trim()) { res.statusCode = 400; return json(res, { msg: '内容不能为空' }) }
+          const n = createNotification({
+            user_id: body.user_id || 1, type: body.type || 'system',
+            title: body.title.trim(), content: body.content.trim(),
+            related_order_no: body.related_order_no,
+          })
+          return json(res, n)
+        }
+        const delMatch = url.match(/^\/(\d+)$/)
+        if (delMatch && method === 'DELETE') {
+          const ok = deleteAdminNotification(parseInt(delMatch[1]))
           if (!ok) { res.statusCode = 404; return json(res, {}) }
           return json(res, { msg: 'ok' })
         }

@@ -12,6 +12,7 @@ import { getCart, addCartItem, updateCartQty, toggleCartChecked, toggleAllChecke
 import { getPageConfigs as getPC } from '../../shared/mock/page-config-store'
 import { getOrders, getOrderDetail, createOrder as createMockOrder, updateOrderStatus, payOrder as payMockOrder } from '../../shared/mock/order-store'
 import { addFeedback } from '../../shared/mock/feedback-store'
+import { getNotifications, getUnreadCount, markAsRead, markAllAsRead, deleteNotification } from '../../shared/mock/notification-store'
 
 // ---- Captcha store (shared by auth and captcha endpoints) ----
 const captchaStore = new Map<string, string>()
@@ -348,6 +349,40 @@ export function h5MockPlugin(): Plugin {
           if (!body.content || !body.content.trim()) { res.statusCode = 400; return json(res, { msg: '内容不能为空' }) }
           const fb = addFeedback({ type: body.type || 'other', content: body.content.trim(), contact: body.contact || '', images: body.images || [] })
           return json(res, { id: fb.id })
+        }
+        next()
+      })
+
+      // --- Notifications ---
+      server.middlewares.use('/api/v1/msg/notifications', async (req, res, next) => {
+        const url = req.url!
+        const method = req.method!
+        const userId = 1 // from mock auth, all users share userId=1
+
+        if ((url === '' || url === '/') && method === 'GET') {
+          const u = new URL(url, 'http://localhost')
+          const page = parseInt(u.searchParams.get('page') || '1')
+          const pageSize = parseInt(u.searchParams.get('page_size') || '20')
+          return json(res, getNotifications(userId, page, pageSize))
+        }
+        if (url === '/unread-count' && method === 'GET') {
+          return json(res, { count: getUnreadCount(userId) })
+        }
+        if (url === '/read-all' && method === 'PUT') {
+          markAllAsRead(userId)
+          return json(res, { msg: 'ok' })
+        }
+        const readMatch = url.match(/^\/(\d+)\/read$/)
+        if (readMatch && method === 'PUT') {
+          const ok = markAsRead(parseInt(readMatch[1]), userId)
+          if (!ok) { res.statusCode = 404; return json(res, { msg: '消息不存在' }) }
+          return json(res, { msg: 'ok' })
+        }
+        const delMatch = url.match(/^\/(\d+)$/)
+        if (delMatch && method === 'DELETE') {
+          const ok = deleteNotification(parseInt(delMatch[1]), userId)
+          if (!ok) { res.statusCode = 404; return json(res, { msg: '消息不存在' }) }
+          return json(res, { msg: 'ok' })
         }
         next()
       })

@@ -2,7 +2,7 @@
 import { useRouter, useRoute } from 'vue-router'
 import { useAdminStore } from '@/stores/user'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { Setting, DataAnalysis, Goods, Tickets, User, Document, Picture, ChatDotRound, ChatLineSquare } from '@element-plus/icons-vue'
+import { Setting, DataAnalysis, Goods, Tickets, User, Document, Picture, ChatDotRound, ChatLineSquare, Avatar } from '@element-plus/icons-vue'
 import { adminLogout } from '@/api/auth'
 
 const appTitle = import.meta.env.VITE_APP_TITLE || 'H5靶机后台'
@@ -62,6 +62,10 @@ async function handleLogout() {
         <el-menu-item index="/logs">
           <el-icon><Document /></el-icon>
           <span>日志管理</span>
+        </el-menu-item>
+        <el-menu-item index="/profile">
+          <el-icon><Avatar /></el-icon>
+          <span>个人设置</span>
         </el-menu-item>
       </el-menu>
     </el-aside>

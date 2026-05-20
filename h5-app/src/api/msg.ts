@@ -22,7 +22,11 @@ export function getUnreadCount() {
 }
 
 export function markAsRead(id: number) {
-  return request.post<null>('/msg/notifications/read', { id })
+  return request.put<null>(`/msg/notifications/${id}/read`)
+}
+
+export function deleteMsg(id: number) {
+  return request.delete<null>(`/msg/notifications/${id}`)
 }
 
 export function markAllAsRead() {

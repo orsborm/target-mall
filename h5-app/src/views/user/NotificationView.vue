@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { getMsgList, markAsRead, markAllAsRead } from '@/api/msg'
+import { useRouter } from 'vue-router'
+import { getMsgList, markAsRead, deleteMsg, markAllAsRead } from '@/api/msg'
 import type { MessageItem } from '@/api/msg'
 import { formatDate } from '@/utils/format'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
+const router = useRouter()
 const messages = ref<MessageItem[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -28,6 +30,15 @@ async function handleItemClick(msg: MessageItem) {
   if (!msg.is_read) {
     try { await markAsRead(msg.id); msg.is_read = true } catch { ElMessage.error('标记已读失败') }
   }
+  // Navigate to related order if present
+  if (msg.related_order_no) {
+    router.push(`/order/${msg.related_order_no}`)
+  }
+}
+
+async function handleDelete(msg: MessageItem) {
+  try { await ElMessageBox.confirm('确定删除该消息？', '提示', { type: 'warning' }) } catch { return }
+  try { await deleteMsg(msg.id); messages.value = messages.value.filter(m => m.id !== msg.id); ElMessage.success('已删除') } catch { ElMessage.error('删除失败') }
 }
 
 async function handleReadAll() {
@@ -68,6 +79,7 @@ onMounted(() => loadMessages(true))
             </div>
             <div class="msg-item__text">{{ msg.content }}</div>
           </div>
+          <el-button link type="danger" size="small" @click.stop="handleDelete(msg)">删除</el-button>
         </div>
       </div>
 
