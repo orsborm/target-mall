@@ -66,8 +66,10 @@ function onCheckout() {
   if (selectedItems.value.length === 0) { ElMessage.warning('请选择商品'); return }
   const orderItems = selectedItems.value.map(i => ({ sku_id: i.sku_id, spu_id: i.spu_id, quantity: i.quantity, price: i.price, goods_title: i.spu_name, goods_image: i.main_image }))
   const cartItemIds = selectedItems.value.map(i => i.id)
-  sessionStorage.setItem('checkout_items', JSON.stringify(orderItems))
-  sessionStorage.setItem('checkout_cart_ids', JSON.stringify(cartItemIds))
+  // Store both arrays in a single key so they are written/read atomically —
+  // prevents the race where another tab modifies sessionStorage between the
+  // two separate setItem calls.
+  sessionStorage.setItem('checkout_data', JSON.stringify({ items: orderItems, cart_ids: cartItemIds }))
   router.push({ name: 'order-confirm' })
 }
 

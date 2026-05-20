@@ -143,7 +143,9 @@ export function createOrder(data: { user_id: number; items: { sku_id: number; sp
     if (it.quantity < 1) throw new Error('商品数量至少为1')
   }
   const s = reload()
-  const orderNo = `ORD${Date.now()}${s.nextId}`
+  // Append random entropy to prevent duplicate order_no when two requests
+  // land in the same millisecond (e.g. double-click submit on checkout).
+  const orderNo = `ORD${Date.now()}${s.nextId}${Math.random().toString(36).slice(2, 6)}`
   const entry: OrderEntry = {
     id: s.nextId++,
     order_no: orderNo,

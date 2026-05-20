@@ -68,11 +68,18 @@ async function selectCoupon(couponId: number) {
 }
 
 onMounted(async () => {
-  try { items.value = JSON.parse(sessionStorage.getItem('checkout_items') || '[]') } catch { items.value = [] }
+  try {
+    const raw = sessionStorage.getItem('checkout_data')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      items.value = parsed.items || []
+      cartItemIds = parsed.cart_ids || []
+    }
+  } catch { items.value = [] }
   if (items.value.length === 0) { ElMessage.error('订单数据异常，请重新选择商品'); router.back(); return }
   if (items.value.some(i => !i.sku_id)) {
     ElMessage.warning('订单数据已过期，请重新选择商品结算')
-    sessionStorage.removeItem('checkout_items'); sessionStorage.removeItem('checkout_cart_ids')
+    sessionStorage.removeItem('checkout_data')
     router.back(); return
   }
   loadAddresses(); loadCoupons()
@@ -88,10 +95,11 @@ onMounted(async () => {
 
 function selectAddress(addr: Address) { selectedAddress.value = addr }
 
+// cartItemIds loaded once in onMounted from the atomic checkout_data key
+let cartItemIds: number[] = []
+
 async function handleSubmit() {
   if (!selectedAddress.value) { ElMessage.warning('请选择收货地址'); return }
-  let cartItemIds: number[] = []
-  try { cartItemIds = JSON.parse(sessionStorage.getItem('checkout_cart_ids') || '[]') } catch { cartItemIds = [] }
   if (cartItemIds.length === 0) { ElMessage.error('订单数据异常'); return }
   submitting.value = true
   try {

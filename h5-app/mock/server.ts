@@ -78,21 +78,24 @@ export function h5MockPlugin(): Plugin {
 
         // POST /api/v1/order/orders/create
         if ((url === '/create' || url === '/create/') && method === 'POST') {
-          // Build items from cart data (or from direct buy body)
+          const userId = body.user_id || 1
+          // Snapshot the cart ONCE before order creation to prevent a race
+          // where another request modifies the cart between the item-build
+          // read and the cleanup remove (P0-4).
+          const cartSnapshot = getCart(userId)
           const items = (body.items || []).map((it: any) => ({
             sku_id: it.sku_id || 1, spu_name: it.spu_name || it.goods_title || '商品',
             price: it.price || 0, quantity: it.quantity || 1, main_image: it.main_image || it.goods_image || '',
           }))
-          // If no items in body, create a default item from cart
+          // If client didn't send explicit items, build from checked cart items
           if (items.length === 0) {
-            const cartItems = getCart(body.user_id || 1)
-            const checked = cartItems.filter((ci: any) => ci.checked)
+            const checked = cartSnapshot.filter((ci: any) => ci.checked)
             for (const ci of checked) {
               items.push({ sku_id: ci.sku_id, spu_name: ci.spu_name, price: ci.price, quantity: ci.quantity, main_image: ci.main_image })
             }
           }
           const order = createMockOrder({
-            user_id: body.user_id || 1,
+            user_id: userId,
             items,
             total_amount: items.reduce((s: number, it: any) => s + it.price * it.quantity, 0),
             freight_amount: body.freight_amount || 0,
@@ -101,10 +104,10 @@ export function h5MockPlugin(): Plugin {
             remark: body.remark,
             coupon_id: body.coupon_id,
           })
-          // Clear checked cart items after order
-          const cartItems = getCart(body.user_id || 1)
-          const checkedIds = cartItems.filter((ci: any) => ci.checked).map((ci: any) => ci.id)
-          if (checkedIds.length > 0) removeCartItemsFn(body.user_id || 1, checkedIds)
+          // Remove checked items from the snapshot (not a fresh read) to avoid
+          // deleting items that were added to cart after the order was placed.
+          const checkedIds = cartSnapshot.filter((ci: any) => ci.checked).map((ci: any) => ci.id)
+          if (checkedIds.length > 0) removeCartItemsFn(userId, checkedIds)
           return json(res, { order_id: order.id, order_no: order.order_no })
         }
 

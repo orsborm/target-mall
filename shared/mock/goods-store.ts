@@ -261,7 +261,8 @@ function saveCategories(data: { nextCatId: number; categories: CategoryItem[] })
   try {
     const dir = path.dirname(CATEGORY_FILE)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(CATEGORY_FILE, JSON.stringify(data, null, 2), 'utf-8')
+    // Use atomicWrite for cross-process safety, consistent with all other stores
+    atomicWrite(CATEGORY_FILE, JSON.stringify(data, null, 2))
   } catch { /* ignore */ }
 }
 
