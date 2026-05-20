@@ -60,12 +60,181 @@ const logFiles = [
   { name: 'sys-service.log', path: 'sys/sys-service.log', service: 'sys', size: 81920, size_bytes: 81920, size_mb: 0.078, modified: new Date().toISOString(), modified_at: new Date().toISOString() },
 ]
 
-const logLines = (service: string, lines: number) =>
-  Array.from({ length: lines }, (_, i) => {
-    const levels = ['INFO', 'INFO', 'INFO', 'WARN', 'ERROR']
-    const lv = levels[i % 5]
-    return `2025-05-${String(14 - Math.floor(i / 100)).padStart(2, '0')} ${String(i % 24).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00 [${lv}] ${service} - message #${i + 1}`
-  })
+// ---- Realistic mock logs with Chinese/English messages ----
+const LOG_TEMPLATES: Record<string, { level: string; messages: string[] }[]> = {
+  user: [
+    { level: 'INFO', messages: [
+      'User service starting on port 8001',
+      'Database connection pool initialized (max=20, idle_timeout=30s)',
+      'Redis cache connected successfully at redis://localhost:6379',
+      'JWT signing key loaded from config',
+      'Registered 12 API routes in 34ms',
+      'User login successful: username=admin, ip=192.168.1.100',
+      '用户 admin 登录成功，IP: 192.168.1.100',
+      'User register: username=testuser1, email=test@example.com',
+      '新用户注册: testuser1',
+      'Profile updated for user_id=5',
+      '用户 ID=5 修改了个人信息',
+      'Password changed for user_id=3',
+      '用户 ID=3 修改了密码',
+      'Token refreshed for user_id=1, expires_in=7200s',
+      'Address added: user_id=2, province=广东省, city=深圳市',
+      '用户 ID=2 新增收货地址: 广东省深圳市',
+      'Address deleted: id=12, user_id=2',
+      'Logout: user_id=5, session cleared',
+    ]},
+    { level: 'WARN', messages: [
+      'Login failed: username=root, ip=10.0.0.55, reason=密码错误 (attempt 3/5)',
+      '登录失败: 用户名 root，IP 10.0.0.55，密码错误，剩余尝试 2 次',
+      'Login lock triggered for IP 10.0.0.55 after 8 failed attempts',
+      'IP 10.0.0.55 登录尝试超过阈值，已锁定 15 分钟',
+      'Token near expiry for user_id=7, ttl=120s',
+      'Refresh token expired for user_id=12, forcing re-login',
+      'Redis connection pool running low: 18/20 connections active',
+    ]},
+    { level: 'ERROR', messages: [
+      'Failed to hash password: unexpected algorithm error',
+      '密码加密失败，算法异常',
+      'Database connection lost, retrying in 3s... (attempt 1/5)',
+      '数据库连接丢失，3秒后重试 (第1次)',
+      'JWT verification failed: token signature invalid for user_id=99',
+      'JWT 验证失败: Token 签名无效',
+      'Failed to send SMS verification code to 138****0001: gateway timeout',
+    ]},
+  ],
+  goods: [
+    { level: 'INFO', messages: [
+      'Goods service starting on port 8002',
+      'Category cache loaded: 5 top-level categories',
+      '商品分类缓存已加载: 5个顶级分类',
+      'Product index rebuilt in 1.2s (25 spu, 75 sku)',
+      '商品索引重建完成 (25 SPU, 75 SKU)',
+      'New product created: SPU0026 — 机械键盘 Pro',
+      '新增商品: SPU0026 机械键盘 Pro',
+      'Product updated: id=3, price range 30000-60000 → 32000-62000',
+      '商品 ID=3 价格已更新',
+      'Product soft-deleted: id=25 (status=-1)',
+      '商品已下架: ID=25',
+      'SKU stock updated: sku_id=100, 50 → 45 (sold 5)',
+      'SKU 库存更新: SKU-100, 50→45',
+      'Comment added: spu_id=1, rating=5, user_id=3',
+      '新增商品评价: SPU-1, 评分5星',
+    ]},
+    { level: 'WARN', messages: [
+      'Low stock alert: sku_id=105, stock=3 (threshold=5)',
+      '库存预警: SKU-105 仅剩 3 件 (阈值 5)',
+      'Stock depleted: sku_id=120, stock=0 — auto-hide from listing',
+      'SKU-120 库存为0，已自动下架',
+      'Image URL unreachable: https://picsum.photos/seed/goods99/200/200 (timeout 5s)',
+      '商品图片加载超时: goods99',
+      'Category cache miss for category_id=99, falling back to DB query',
+    ]},
+    { level: 'ERROR', messages: [
+      'Failed to upload product image: disk quota exceeded',
+      '商品图片上传失败: 磁盘配额已满',
+      'Elasticsearch sync failed for SPU 15 — index inconsistent',
+      '搜索引擎同步失败: SPU-15 索引不一致',
+      'Bulk SKU update aborted: negative price detected for sku_id=130',
+      '批量SKU更新中止: SKU-130 价格为负数',
+    ]},
+  ],
+  order: [
+    { level: 'INFO', messages: [
+      'Order service starting on port 8003',
+      'Order created: ORD20250519001, user_id=1, amount=29900, items=2',
+      '新订单创建: ORD20250519001, 用户ID=1, 金额¥299.00',
+      'Payment received: order_id=1001, method=wechat, pay_no=PAY20250519001',
+      '支付成功: 订单#1001, 微信支付, 流水号 PAY20250519001',
+      'Order shipped: id=1001, company=顺丰速运, tracking=SF1234567890',
+      '订单已发货: #1001, 顺丰速运 SF1234567890',
+      'Order confirmed received: id=1000',
+      '订单已确认收货: #1000',
+      'Refund requested: order_id=1003, amount=29900, reason=商品质量问题',
+      '退款申请: 订单#1003, ¥299.00, 原因: 商品质量问题',
+      'Refund approved: order_id=1003, refund_no=RF20250519001',
+      '退款已通过: 订单#1003',
+      'Cart cleared after order: user_id=1, 3 items removed',
+      '购物车已清空: 用户ID=1, 移除3件商品',
+    ]},
+    { level: 'WARN', messages: [
+      'Order expired: id=1005, status=pending_payment, timeout=30min',
+      '订单已超时: #1005 未支付超过30分钟，自动取消',
+      'Duplicate order_no risk: 2 concurrent createOrder calls within 1ms',
+      'Shipping callback from 顺丰速运 delayed by 45s',
+      '快递回调延迟: 顺丰速运 延迟45秒',
+      'Refund amount exceeds order total: order_id=1008, refund=59900, paid=29900',
+      '退款金额超过实付: 订单#1008',
+    ]},
+    { level: 'ERROR', messages: [
+      'Payment gateway timeout: order_id=1006, retry exhausted (3/3)',
+      '支付网关超时: 订单#1006, 重试已耗尽',
+      'Order creation failed: inventory check — sku_id=99 out of stock',
+      '订单创建失败: SKU-99 库存不足',
+      'Coupon consumption failed after order creation: order=1007, coupon=45',
+      '优惠券核销失败(订单已创建): 订单#1007, 优惠券#45',
+    ]},
+  ],
+  sys: [
+    { level: 'INFO', messages: [
+      'System service starting on port 8005',
+      'Scheduled task registered: clean_expired_tokens (interval=1h)',
+      '定时任务已注册: 清理过期Token (每1小时)',
+      'Scheduled task registered: rotate_logs (interval=24h)',
+      '定时任务已注册: 日志轮转 (每24小时)',
+      'Page config updated: home_banner_1, new URL set',
+      '首页配置已更新: 轮播图1',
+      'Captcha generated: id=cap_20250519_001, ttl=300s',
+      '验证码已生成: cap_20250519_001',
+      'Dashboard overview queried (cached)',
+      '仪表盘数据查询 (缓存命中)',
+      'Banner reorder: home page, 5 items re-sequenced',
+      '轮播图排序: 首页, 5项已重新排列',
+    ]},
+    { level: 'WARN', messages: [
+      'Disk usage approaching threshold: 78% (warning at 80%)',
+      '磁盘使用率 78%，接近告警阈值 80%',
+      'Log file user-service.log reached 100MB, rotation triggered',
+      '日志文件超过100MB，已触发轮转',
+      'Captcha generation rate limit hit for IP 10.0.0.88 (100/min)',
+      'IP 10.0.0.88 验证码请求频率超限',
+    ]},
+    { level: 'ERROR', messages: [
+      'Failed to send email notification: SMTP connection refused',
+      '邮件通知发送失败: SMTP连接被拒绝',
+      'Log cleanup task failed: permission denied on sys-service.log',
+      '日志清理失败: 权限不足',
+      'Config file corruption detected — restored from backup',
+      '配置文件损坏，已从备份恢复',
+    ]},
+  ],
+}
+
+function generateLogs(service: string, totalLines: number): string[] {
+  // When 'all', interleave logs from every service
+  const services = service === 'all' ? ['user', 'goods', 'order', 'sys'] : [service]
+  const now = new Date()
+  const result: string[] = []
+  let globalIdx = 0
+  while (result.length < totalLines) {
+    for (const svc of services) {
+      if (result.length >= totalLines) break
+      const templates = LOG_TEMPLATES[svc] || LOG_TEMPLATES['sys']
+      // Flatten templates into a flat pool for cycling
+      const pool: { level: string; msg: string }[] = []
+      for (const t of templates) for (const m of t.messages) pool.push({ level: t.level, msg: m })
+      const entry = pool[globalIdx % pool.length]
+      // Vary timestamps: ~2 min apart, most recent first
+      const offsetMs = globalIdx * 131 * 1000
+      const ts = new Date(now.getTime() - offsetMs)
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const dateStr = `${ts.getFullYear()}-${pad(ts.getMonth() + 1)}-${pad(ts.getDate())}`
+      const timeStr = `${pad(ts.getHours())}:${pad(ts.getMinutes())}:${pad(ts.getSeconds())}`
+      result.push(`${dateStr} ${timeStr} [${entry.level}] ${svc} - ${entry.msg}`)
+      globalIdx++
+    }
+  }
+  return result
+}
 
 // ---- route handler ----
 
@@ -451,11 +620,12 @@ export function adminMockPlugin(): Plugin {
         const service = url.searchParams.get('service') || ''
         const lines = parseInt(url.searchParams.get('lines') || '200')
         const offset = parseInt(url.searchParams.get('offset') || '0')
-        const all = logLines(service || 'all', lines + offset)
+        // Use all services if none specified; generate enough to cover offset+lines
+        const all = generateLogs(service || 'all', (lines + offset) * 3)
         const chunk = all.slice(offset, offset + lines)
         json(res, {
           service: service || 'all', file: `${service || 'all'}-service.log`,
-          lines: chunk, total_lines: 10000, offset, count: chunk.length,
+          lines: chunk, total_lines: all.length, offset, count: chunk.length,
         })
       })
 
@@ -463,7 +633,7 @@ export function adminMockPlugin(): Plugin {
         const url = new URL(req.url!, 'http://localhost')
         const keyword = url.searchParams.get('keyword') || ''
         const level = url.searchParams.get('level') || ''
-        const matches = logLines('all', 500)
+        const matches = generateLogs('all', 400)
           .filter(l => l.toLowerCase().includes(keyword.toLowerCase()))
           .filter(l => !level || l.includes(level))
           .slice(0, 100)
@@ -478,7 +648,7 @@ export function adminMockPlugin(): Plugin {
       server.middlewares.use('/api/v1/sys/log/errors', (req, res) => {
         const url = new URL(req.url!, 'http://localhost')
         const lines = parseInt(url.searchParams.get('lines') || '100')
-        const errs = logLines('all', 500).filter(l => l.includes('ERROR') || l.includes('WARN'))
+        const errs = generateLogs('all', 400).filter(l => l.includes('ERROR') || l.includes('WARN'))
         json(res, { service: '', file: '', lines: errs.slice(0, lines), total_lines: errs.length, offset: 0, count: Math.min(errs.length, lines) })
       })
 
