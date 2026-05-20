@@ -13,6 +13,7 @@ const stats = ref({
   total_orders: null as number | null,
   today_orders: null as number | null,
   pending_orders: null as number | null,
+  to_ship_orders: null as number | null,
   total_revenue: null as number | null,
 })
 const loading = ref(true)
@@ -26,6 +27,7 @@ onMounted(async () => {
       total_orders: data.total_orders ?? null,
       today_orders: data.today_orders ?? null,
       pending_orders: data.pending_orders ?? null,
+      to_ship_orders: (data as any).to_ship_orders ?? null,
       total_revenue: data.total_revenue ?? null,
     }
   } catch { ElMessage.error('加载仪表盘数据失败') } finally { loading.value = false }
@@ -67,6 +69,14 @@ onMounted(async () => {
             <div style="font-size:26px;font-weight:700;margin-top:6px;color:#e6a23c">{{ stats.pending_orders ?? '-' }}</div>
           </el-card>
         </el-col>
+        <el-col :span="4">
+          <el-card shadow="hover">
+            <div style="font-size:12px;color:#909399">待发货</div>
+            <div style="font-size:26px;font-weight:700;margin-top:6px;color:#409eff">{{ stats.to_ship_orders ?? '-' }}</div>
+          </el-card>
+        </el-col>
+      </el-row>
+      <el-row :gutter="16" style="margin-top:16px">
         <el-col :span="4">
           <el-card shadow="hover">
             <div style="font-size:12px;color:#909399">总营收</div>

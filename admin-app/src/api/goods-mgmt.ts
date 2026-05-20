@@ -66,7 +66,7 @@ export function deleteCategory(id: number) {
 
 export interface DashboardOverview {
   total_goods: number; total_users: number; total_orders: number
-  today_orders: number; pending_orders: number; total_revenue: number
+  today_orders: number; pending_orders: number; to_ship_orders: number; total_revenue: number
 }
 export function getDashboardOverview() {
   return request.get<DashboardOverview>('/sys/dashboard/overview')

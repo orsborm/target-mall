@@ -404,11 +404,16 @@ export function adminMockPlugin(): Plugin {
           total_users: users.length,
           total_orders: ordersList.length,
           today_orders: ordersList.filter(o => {
-            const d = new Date(o.created_at || 0)
-            const t = new Date()
-            return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
+            const created = new Date(o.created_at || 0)
+            const now = new Date()
+            // Compare UTC dates to avoid timezone skew between server and client
+            return created.getUTCFullYear() === now.getUTCFullYear()
+              && created.getUTCMonth() === now.getUTCMonth()
+              && created.getUTCDate() === now.getUTCDate()
           }).length,
-          pending_orders: ordersList.filter(o => o.status === 'pending_payment' || o.status === 'paid').length,
+          // Only unpaid orders count as "pending"; paid-but-unshipped is "to_ship"
+          pending_orders: ordersList.filter(o => o.status === 'pending_payment').length,
+          to_ship_orders: ordersList.filter(o => o.status === 'paid').length,
           total_revenue: ordersList
             .filter(o => ['paid', 'shipped', 'received', 'completed', 'refunding'].includes(o.status))
             .reduce((s: number, o: any) => s + o.pay_amount, 0),
