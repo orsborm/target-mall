@@ -295,6 +295,10 @@ export function h5MockPlugin(): Plugin {
           if (!ok) { res.statusCode = 404; return json(res, { msg: '购物车项不存在' }) }
           return json(res, { msg: 'ok' })
         }
+        // GET /api/v1/order/cart/count — lightweight count (no goods-detail enrichment)
+        if (url === '/count' && method === 'GET') {
+          return json(res, { count: getCartCountFn(userId) })
+        }
         next()
       })
 

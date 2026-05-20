@@ -28,6 +28,12 @@ router.beforeEach((to, _from, next) => {
     next({ name: 'login', query: { redirect: to.fullPath } })
     return
   }
+  // Role-based access: meta.role restricts to specific role_code
+  if (to.meta.role && store.roleCode !== to.meta.role && store.roleCode !== 'admin') {
+    ElMessage.error('无权访问此页面')
+    next({ name: 'dashboard' })
+    return
+  }
   if (to.meta.guest && store.isLoggedIn) {
     next({ name: 'dashboard' })
     return

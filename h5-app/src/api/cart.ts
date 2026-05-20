@@ -71,6 +71,8 @@ export function toggleSelectAll(checked: boolean) {
 }
 
 export async function getCartCount() {
-  const items = await getCartList().catch((e) => { if (import.meta.env.DEV) console.error('Failed to fetch cart count:', e); return [] as CartItem[] })
-  return { count: items.reduce((s, i) => s + i.quantity, 0) }
+  // Use the lightweight /count endpoint — no goods-detail enrichment needed
+  // just to display a badge number (P2-11: was fetching full cart + N goods details).
+  const res = await request.get<{ count: number }>('/order/cart/count').catch(() => null)
+  return { count: res?.count ?? 0 }
 }

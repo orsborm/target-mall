@@ -6,13 +6,13 @@ import { getFeedbackList, updateFeedbackStatus } from '@/api/feedback-mgmt'
 import type { FeedbackItem } from '@/api/feedback-mgmt'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import { formatDate } from '@/utils/format'
+import { formatDate, DEFAULT_PAGE_SIZE } from '@/utils/format'
 
 const feedbacks = ref<FeedbackItem[]>([])
 const loading = ref(false)
 const total = ref(0)
 const page = ref(1)
-const pageSize = 20
+const pageSize = DEFAULT_PAGE_SIZE
 const filterType = ref('')
 const detailVisible = ref(false)
 const currentItem = ref<FeedbackItem | null>(null)

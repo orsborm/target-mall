@@ -70,10 +70,12 @@ export function atomicWrite(filePath: string, data: string): void {
   }
 }
 
+// Pre-compute stock totals by spu_id in O(N) instead of O(N*M) filter per goods.
 export function enrichWithStock(goods: any[]): any[] {
   const skusAll = getSkus()
-  return goods.map(g => {
-    const gSkus = skusAll.filter(s => s.spu_id === g.id)
-    return { ...g, total_stock: gSkus.reduce((sum: number, s: any) => sum + s.stock, 0) }
-  })
+  const stockBySpu = new Map<number, number>()
+  for (const s of skusAll) {
+    stockBySpu.set(s.spu_id, (stockBySpu.get(s.spu_id) || 0) + s.stock)
+  }
+  return goods.map(g => ({ ...g, total_stock: stockBySpu.get(g.id) || 0 }))
 }

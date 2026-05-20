@@ -4,7 +4,7 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import PaginationWrap from '@/components/PaginationWrap.vue'
 import { getOrderList, processRefund, updateShipping, updateRemark, ORDER_STATUS_MAP } from '@/api/order-mgmt'
 import type { AdminOrder } from '@/api/order-mgmt'
-import { formatPrice, formatDate } from '@/utils/format'
+import { formatPrice, formatDate, DEFAULT_PAGE_SIZE } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Search } from '@element-plus/icons-vue'
 
@@ -12,7 +12,7 @@ const orders = ref<AdminOrder[]>([])
 const total = ref(0)
 const page = ref(1)
 const loading = ref(false)
-const pageSize = 20
+const pageSize = DEFAULT_PAGE_SIZE
 const activeStatus = ref('')
 const searchKeyword = ref('')
 const detailVisible = ref(false)

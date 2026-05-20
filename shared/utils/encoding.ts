@@ -44,7 +44,13 @@ export function fixGarbledUtf8(str: string): string {
       bytes.push(b)
     }
     const decoded = decoder.decode(new Uint8Array(bytes))
-    if (/[一-鿿㐀-䶿豈-﫿]/.test(decoded)) return decoded
+    // CJK check: Unified + Extension A–F + Compatibility + Kana + Hangul
+    if (/[一-鿿㐀-䶿豈-﫿⺀-⻿　-〿㇀-㇯가-힯぀-ゟ゠-ヿ]/.test(decoded)) return decoded
+    // Fallback heuristic: if decoding significantly reduced the high-byte
+    // density (0x80+), the fix likely succeeded even without visible CJK.
+    const origHigh = [...str].filter(c => c.charCodeAt(0) >= 0x80).length
+    const decHigh = [...decoded].filter(c => c.charCodeAt(0) >= 0x80).length
+    if (origHigh > 0 && decHigh < origHigh * 0.5) return decoded
     return str
   } catch {
     return str
@@ -60,7 +66,12 @@ function isUrl(str: string): boolean {
 
 const imageKeyRegex = /(image|avatar|captcha|icon|photo|img|base64)/i
 
-export function deepFixEncoding<T>(data: T, key?: string): T {
+// Max recursion depth and circular reference protection to prevent stack
+// overflow on deeply nested API responses or self-referencing objects (P2-1).
+const MAX_ENCODING_DEPTH = 100
+
+export function deepFixEncoding<T>(data: T, key?: string, _depth = 0, _seen = new WeakSet<object>()): T {
+  if (_depth > MAX_ENCODING_DEPTH) return data
   if (data === null || data === undefined) return data
   if (typeof data === 'string') {
     if (isDataUri(data) || isUrl(data)) return data
@@ -68,12 +79,18 @@ export function deepFixEncoding<T>(data: T, key?: string): T {
     return fixGarbledUtf8(data) as unknown as T
   }
   if (Array.isArray(data)) {
-    return data.map((item, i) => deepFixEncoding(item, `${key || ''}[${i}]`)) as unknown as T
+    return data.map((item, i) => deepFixEncoding(item, `${key || ''}[${i}]`, _depth + 1, _seen)) as unknown as T
   }
   if (typeof data === 'object') {
+    if (_seen.has(data as object)) return data
+    _seen.add(data as object)
+    // Skip non-plain objects (Date, RegExp, Map, etc.) whose enumerable
+    // properties would produce an empty clone.
+    const proto = Object.getPrototypeOf(data)
+    if (proto !== Object.prototype && proto !== Array.prototype && proto !== null) return data
     const result: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
-      result[k] = deepFixEncoding(v, k)
+      result[k] = deepFixEncoding(v, k, _depth + 1, _seen)
     }
     return result as unknown as T
   }

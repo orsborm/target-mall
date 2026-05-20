@@ -4,7 +4,7 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import PaginationWrap from '@/components/PaginationWrap.vue'
 import { getGoodsList, updateGoodsStatus, updateGoods, getGoodsDetail, updateSkus, createGoods, deleteGoods, getCategoryTree, createCategory, updateCategory, deleteCategory } from '@/api/goods-mgmt'
 import type { GoodsItem, SkuInfo, GoodsCategory } from '@/api/goods-mgmt'
-import { formatPrice, formatDate } from '@/utils/format'
+import { formatPrice, formatDate, DEFAULT_PAGE_SIZE } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Edit, Delete, Plus } from '@element-plus/icons-vue'
 
@@ -14,7 +14,7 @@ const goods = ref<GoodsItemExt[]>([])
 const total = ref(0)
 const page = ref(1)
 const loading = ref(false)
-const pageSize = 20
+const pageSize = DEFAULT_PAGE_SIZE
 const editVisible = ref(false)
 const editingGoods = reactive<Partial<GoodsItemExt>>({})
 const editingId = ref(0)

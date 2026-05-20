@@ -4,7 +4,7 @@ import AdminLayout from '@/components/AdminLayout.vue'
 import PaginationWrap from '@/components/PaginationWrap.vue'
 import { getUserList, updateUserStatus } from '@/api/user-mgmt'
 import type { UserItem } from '@/api/user-mgmt'
-import { formatDate } from '@/utils/format'
+import { formatDate, DEFAULT_PAGE_SIZE } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 
@@ -12,7 +12,7 @@ const users = ref<UserItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const loading = ref(false)
-const pageSize = 20
+const pageSize = DEFAULT_PAGE_SIZE
 
 async function loadUsers() {
   loading.value = true

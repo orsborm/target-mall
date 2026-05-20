@@ -6,13 +6,13 @@ import { getCommentList, deleteAdminComment } from '@/api/comment-mgmt'
 import type { AdminComment } from '@/api/comment-mgmt'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Delete } from '@element-plus/icons-vue'
-import { formatDate } from '@/utils/format'
+import { formatDate, DEFAULT_PAGE_SIZE } from '@/utils/format'
 
 const comments = ref<AdminComment[]>([])
 const loading = ref(false)
 const total = ref(0)
 const page = ref(1)
-const pageSize = 20
+const pageSize = DEFAULT_PAGE_SIZE
 
 function renderStars(rating: number) {
   return '★'.repeat(rating) + '☆'.repeat(5 - rating)
