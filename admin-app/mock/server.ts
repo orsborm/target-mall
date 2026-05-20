@@ -363,17 +363,20 @@ export function adminMockPlugin(): Plugin {
 
       // --- Dashboard ---
       server.middlewares.use('/api/v1/sys/dashboard/overview', (_req, res) => {
+        // uid=0 returns orders for ALL users — required for admin dashboard
+        const allOrders = getSharedOrders(0, undefined, 1, 10000)
+        const ordersList = allOrders.list
         json(res, {
           total_goods: getGoods().length,
           total_users: users.length,
-          total_orders: orders.length,
-          today_orders: orders.filter(o => {
+          total_orders: ordersList.length,
+          today_orders: ordersList.filter(o => {
             const d = new Date(o.created_at || 0)
             const t = new Date()
             return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
           }).length,
-          pending_orders: orders.filter(o => o.status === 'pending_payment' || o.status === 'paid').length,
-          total_revenue: orders
+          pending_orders: ordersList.filter(o => o.status === 'pending_payment' || o.status === 'paid').length,
+          total_revenue: ordersList
             .filter(o => ['paid', 'shipped', 'received', 'completed', 'refunding'].includes(o.status))
             .reduce((s: number, o: any) => s + o.pay_amount, 0),
         })

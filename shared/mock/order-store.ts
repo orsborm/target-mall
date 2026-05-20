@@ -102,7 +102,8 @@ function reload(): StoreData {
 export function getOrders(userId: number | string, status?: string, page = 1, pageSize = 20) {
   const uid = Number(userId)
   const s = reload()
-  let list = s.orders.filter(o => o.user_id === uid)
+  // uid=0 means "all users" — used by admin dashboard overview
+  let list = uid === 0 ? s.orders : s.orders.filter(o => o.user_id === uid)
   if (status && status !== 'all') list = list.filter(o => o.status === status)
   list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   const start = (page - 1) * pageSize
