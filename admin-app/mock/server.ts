@@ -460,9 +460,23 @@ export function adminMockPlugin(): Plugin {
         json(res, { msg: 'ok', deleted: count })
       })
 
-      // --- Captcha (already works but provide fallback) ---
+      // --- Captcha ---
+      // Backend accepts code "8888" as the universal bypass when Redis is
+      // unavailable (see auth_service_patch.py). Show this code in the SVG
+      // so the rendered captcha matches what the user must type.
       server.middlewares.use('/api/v1/sys/common/captcha', (_req, res) => {
-        json(res, { captcha_id: 'mock-captcha-id', captcha_image: 'data:image/svg+xml;base64,' })
+        const code = '8888'
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40">`
+          + `<rect width="120" height="40" fill="#f0f0f0"/>`
+          + `<text x="24" y="28" font-size="22" fill="#333" font-family="monospace">${code}</text>`
+          + `<line x1="10" y1="33" x2="110" y2="23" stroke="#ccc"/>`
+          + `<line x1="10" y1="24" x2="110" y2="20" stroke="#ccc"/>`
+          + `</svg>`
+        const b64 = Buffer.from(svg).toString('base64')
+        json(res, {
+          captcha_id: 'mock-captcha-' + Date.now(),
+          captcha_image: 'data:image/svg+xml;base64,' + b64,
+        })
       })
 
       // --- Feedback management ---
