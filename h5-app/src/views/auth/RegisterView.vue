@@ -100,6 +100,9 @@ async function handleRegister() {
     ElMessage.success('注册成功，请登录')
     router.replace('/login')
   } catch {
+    // Let interceptor show the server error; also refresh captcha so
+    // the user can retry without getting a stale-captcha rejection.
+    ElMessage.error('注册失败，请检查输入信息后重试')
     fetchCaptcha()
     form.captcha_code = ''
   } finally {

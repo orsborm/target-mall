@@ -91,20 +91,34 @@ async function handleShipping() {
 async function handleRefund(action: 'approve' | 'reject') {
   if (!currentOrder.value) return
   const label = action === 'approve' ? '通过' : '拒绝'
-  try { await ElMessageBox.confirm(`确定${label}该退款申请？`, '退款审核', { type: 'warning' }) } catch { return }
+  let reason = ''
+  if (action === 'reject') {
+    // Collect rejection reason before proceeding
+    try {
+      const res = await ElMessageBox.prompt('请输入退款拒绝原因', '退款审核', {
+        confirmButtonText: '拒绝退款',
+        cancelButtonText: '取消',
+        type: 'warning',
+      })
+      reason = (res.value || '').trim()
+      if (!reason) { ElMessage.warning('请输入拒绝原因'); return }
+    } catch { return }
+  } else {
+    try { await ElMessageBox.confirm('确定通过该退款申请？', '退款审核', { type: 'warning' }) } catch { return }
+  }
   refunding.value = true
   try {
-    await processRefund(currentOrder.value.id, action)
+    await processRefund(currentOrder.value.id, action, reason || undefined)
     const newStatus = action === 'approve' ? 'refunded' : 'completed'
-    // 更新本地状态
     currentOrder.value.status = newStatus
     if (currentOrder.value.refund) {
       currentOrder.value.refund.status = action === 'approve' ? 1 : -1
+      if (reason) currentOrder.value.refund.reject_reason = reason
     }
     const order = orders.value.find(o => o.id === currentOrder.value!.id)
     if (order) {
       order.status = newStatus
-      if (order.refund) order.refund.status = action === 'approve' ? 1 : -1
+      if (order.refund) { order.refund.status = action === 'approve' ? 1 : -1; if (reason) order.refund.reject_reason = reason }
     }
     ElMessage.success(`退款已${label}`)
   } catch { ElMessage.error('操作失败') } finally { refunding.value = false }

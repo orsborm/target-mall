@@ -5,7 +5,15 @@ export interface UserItem {
   phone: string; email: string; role_code: string; status: number; created_at: string
 }
 
-export function getUserList(params?: any) {
+export interface UserListParams {
+  page?: number
+  page_size?: number
+  keyword?: string
+  role_code?: string
+  status?: number
+}
+
+export function getUserList(params?: UserListParams) {
   return request.get<{ list: UserItem[]; total: number; page: number; page_size: number }>('/user/list', { params })
 }
 export function updateUserStatus(id: number, status: number) {

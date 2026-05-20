@@ -123,8 +123,8 @@ export function useCoupon(userId: number, couponId: number): boolean {
   if (!uc) return false
   uc.status = 'used'
   uc.used_at = new Date().toISOString()
-  const tpl = s.coupons.find(c => c.id === couponId)
-  if (tpl) tpl.used_qty++
+  // Do NOT increment tpl.used_qty here — claimCoupon already did that
+  // when the user claimed the coupon. Double-incrementing would over-count.
   save(s)
   return true
 }

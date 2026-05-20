@@ -29,7 +29,8 @@ async function loadData() {
       request.get<CouponTemplate[]>('/sys/coupon/available'),
       request.get<UserCoupon[]>(`/user/coupons?user_id=${userStore.userInfo.id}`),
     ])
-    available.value = avail as any; myCoupons.value = mine as any
+    available.value = Array.isArray(avail) ? avail : []
+    myCoupons.value = Array.isArray(mine) ? mine : []
   } catch { ElMessage.error('加载优惠券失败') } finally { loading.value = false }
 }
 

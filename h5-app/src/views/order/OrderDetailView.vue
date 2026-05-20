@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getOrderDetail, cancelOrder, confirmReceipt, payOrder, requestRefund } from '@/api/order'
 import type { OrderInfo } from '@/api/order'
@@ -25,7 +25,8 @@ async function loadOrder() {
     error.value = '加载订单失败，请重试'
   } finally { loading.value = false }
 }
-onMounted(loadOrder)
+// Watch route param changes so navigating from order/1 → order/2 re-fetches
+watch(() => route.params.id, () => loadOrder(), { immediate: true })
 
 async function handleCancel() {
   if (!order.value) return

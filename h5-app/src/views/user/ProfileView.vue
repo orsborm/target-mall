@@ -19,16 +19,22 @@ const showEdit = ref(false)
 const editForm = ref({ nickname: '', phone: '', email: '' })
 const saving = ref(false)
 
-onMounted(async () => {
+async function loadInfo() {
   if (!userStore.isLoggedIn) { router.push('/login'); return }
+  error.value = ''
   try {
     const [profile, unread] = await Promise.all([
       getUserInfo(),
       getUnreadCount().catch(() => ({ count: 0 })),
     ])
     info.value = profile; userStore.setUserInfo(profile); unreadCount.value = unread.count
-  } catch { ElMessage.error('加载个人信息失败'); info.value = userStore.userInfo }
-})
+  } catch {
+    ElMessage.error('加载个人信息失败')
+    info.value = userStore.userInfo
+    if (!info.value) error.value = '加载个人信息失败，请重试'
+  }
+}
+onMounted(loadInfo)
 
 function openEdit() {
   if (!info.value) return
@@ -59,7 +65,7 @@ const { handleLogout } = useLogout()
     <div class="page-header"><h2>个人中心</h2></div>
 
     <el-result v-if="error" icon="error" :title="error">
-      <template #extra><el-button type="primary" @click="error=''; getUserInfo().then(i => { if (i) { info = i; userStore.setUserInfo(i) } }).catch(() => { error = '重试失败' })">重试</el-button></template>
+      <template #extra><el-button type="primary" @click="loadInfo">重试</el-button></template>
     </el-result>
     <div v-else class="profile-grid">
       <div class="profile-card">

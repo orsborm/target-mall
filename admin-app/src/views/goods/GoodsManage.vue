@@ -203,7 +203,9 @@ async function handleSave() {
         id: s.id, main_image: s.main_image,
         price: Math.round((s.price || 0) * 100),
       }))
-      await updateSkus(editingId.value, skuUpdates).catch(() => { ElMessage.warning('SKU 更新失败，请重试') })
+      await updateSkus(editingId.value, skuUpdates).catch(() => {
+        ElMessage.warning('商品信息已保存，但 SKU 价格/图片更新失败——请重新编辑 SKU 并保存')
+      })
     }
     ElMessage.success('商品更新成功')
     editVisible.value = false

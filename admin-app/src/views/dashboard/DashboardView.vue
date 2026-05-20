@@ -19,7 +19,7 @@ const loading = ref(true)
 
 onMounted(async () => {
   try {
-    const data: DashboardOverview = await getDashboardOverview()
+    const data = await getDashboardOverview()
     stats.value = {
       total_goods: data.total_goods ?? null,
       total_users: data.total_users ?? null,

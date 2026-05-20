@@ -6,6 +6,8 @@ export interface PageConfig {
   type: string
   value: string
   label: string
+  link?: string
+  sort_order?: number
 }
 
 export const useAppStore = defineStore('app', () => {

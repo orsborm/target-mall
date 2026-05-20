@@ -42,7 +42,7 @@ async function loadHome() {
     // 所有 image + text (排除 title/subtitle) 都进入轮播
     slides.value = configs
       .filter((c) => c.type === 'image' || (c.type === 'text' && c.key !== 'home_title' && c.key !== 'home_subtitle'))
-      .sort((a, b) => ((a as any).sort_order || 0) - ((b as any).sort_order || 0))
+      .sort((a, b) => ((a.sort_order || 0) - (b.sort_order || 0)))
       .map((c) => ({ type: c.type as 'image' | 'text', value: c.value, link: c.link || '', label: c.label || '' }))
     goodsList.value = recommend.length > 0 ? recommend : []
   } catch { error.value = '加载首页失败，请刷新重试' } finally {

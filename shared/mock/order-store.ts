@@ -24,6 +24,7 @@ interface OrderEntry {
   items: OrderItem[]
   address_snapshot: { name: string; phone: string; full_address: string }
   remark: string
+  coupon_id?: number
   created_at: string
   paid_at: string | null
   shipping_company: string
@@ -151,8 +152,11 @@ export function createOrder(data: { user_id: number; items: { sku_id: number; sp
     order_no: orderNo,
     user_id: data.user_id,
     status: 'pending_payment',
-    total_amount: data.total_amount, pay_amount: data.total_amount + data.freight_amount - data.discount_amount,
-    freight_amount: data.freight_amount, discount_amount: data.discount_amount,
+    total_amount: data.total_amount,
+    pay_amount: data.total_amount + data.freight_amount - data.discount_amount,
+    freight_amount: data.freight_amount,
+    discount_amount: data.discount_amount,
+    coupon_id: data.coupon_id,
     items: data.items.map((it, i) => ({ ...it, id: i + 1, total_amount: it.price * it.quantity })),
     address_snapshot: data.address_snapshot,
     remark: data.remark || '',
