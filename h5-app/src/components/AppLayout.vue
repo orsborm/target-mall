@@ -6,7 +6,7 @@ import { useCartStore } from '@/stores/cart'
 import { getCartCount } from '@/api/cart'
 import { ElMessageBox } from 'element-plus'
 import { useLogout } from '@/composables/useLogout'
-import { Search, ShoppingCartFull, ShoppingCart } from '@element-plus/icons-vue'
+import { Search, ShoppingCartFull, ShoppingCart, Close } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -16,6 +16,30 @@ const cartStore = useCartStore()
 const appTitle = import.meta.env.VITE_APP_TITLE || 'H5靶机商城'
 const searchKeyword = ref('')
 const cartCount = ref(0)
+const searchFocused = ref(false)
+
+// ---- Search history (localStorage) ----
+const SEARCH_HISTORY_KEY = 'search_history'
+const MAX_HISTORY = 8
+
+function getHistory(): string[] {
+  try { return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || '[]') } catch { return [] }
+}
+function saveHistory(keyword: string) {
+  const kw = keyword.trim()
+  if (!kw) return
+  let list = getHistory().filter(h => h !== kw)
+  list.unshift(kw)
+  if (list.length > MAX_HISTORY) list = list.slice(0, MAX_HISTORY)
+  try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(list)) } catch { /* ignore */ }
+}
+function clearHistory() {
+  try { localStorage.removeItem(SEARCH_HISTORY_KEY) } catch { /* ignore */ }
+}
+const searchHistory = ref<string[]>(getHistory())
+
+// Popular search terms (seeded from common goods keywords)
+const hotSearches = ['机械键盘', '无线鼠标', '显示器', '耳机', '充电器', '折扣', '新品']
 
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const userInfo = computed(() => userStore.userInfo)
@@ -39,10 +63,19 @@ watch(() => userStore.isLoggedIn, async (v) => {
 
 watch(() => cartStore.count, (v) => { cartCount.value = v })
 
-function onSearch() {
-  if (searchKeyword.value.trim()) {
-    router.push({ name: 'goods-list', query: { keyword: searchKeyword.value.trim() } })
+function onSearch(kw?: string) {
+  const q = (kw || searchKeyword.value).trim()
+  if (q) {
+    saveHistory(q)
+    searchHistory.value = getHistory()
+    searchFocused.value = false
+    router.push({ name: 'goods-list', query: { keyword: q } })
   }
+}
+function removeHistoryItem(kw: string) {
+  let list = getHistory().filter(h => h !== kw)
+  try { localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(list)) } catch { /* ignore */ }
+  searchHistory.value = list
 }
 
 const { handleLogout } = useLogout()
@@ -83,9 +116,29 @@ const { handleLogout } = useLogout()
             placeholder="搜索商品..."
             :prefix-icon="Search"
             clearable
-            @keyup.enter="onSearch"
+            @keyup.enter="onSearch()"
+            @focus="searchFocused = true; searchHistory = getHistory()"
+            @blur="setTimeout(() => searchFocused = false, 200)"
             size="large"
           />
+          <!-- Search suggestions dropdown -->
+          <div v-if="searchFocused" class="search-dropdown">
+            <div v-if="searchHistory.length > 0" class="sd-section">
+              <div class="sd-header"><span>搜索历史</span><el-button link size="small" @click="clearHistory(); searchHistory = []">清空</el-button></div>
+              <div class="sd-tags">
+                <span v-for="h in searchHistory" :key="h" class="sd-tag" @mousedown.prevent="searchKeyword = h; onSearch(h)">
+                  {{ h }}
+                  <el-icon class="sd-tag-close" @mousedown.prevent.stop="removeHistoryItem(h)"><Close /></el-icon>
+                </span>
+              </div>
+            </div>
+            <div class="sd-section">
+              <div class="sd-header"><span>热门搜索</span></div>
+              <div class="sd-tags">
+                <span v-for="h in hotSearches" :key="h" class="sd-tag sd-tag--hot" @mousedown.prevent="searchKeyword = h; onSearch(h)">{{ h }}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="header-cart" @click="$router.push('/cart')">
@@ -200,7 +253,33 @@ const { handleLogout } = useLogout()
 .header-search {
   flex: 1;
   max-width: 480px;
+  position: relative;
 }
+.search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0; right: 0;
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.1);
+  z-index: 100;
+  padding: 14px;
+  margin-top: 4px;
+}
+.sd-section { margin-bottom: 12px; }
+.sd-section:last-child { margin-bottom: 0; }
+.sd-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #999; margin-bottom: 8px; }
+.sd-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.sd-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px; background: #f5f7fa; border-radius: 16px;
+  font-size: 13px; cursor: pointer; transition: all .2s;
+}
+.sd-tag:hover { background: #fff0e6; color: #ff6b35; }
+.sd-tag--hot { font-weight: 500; }
+.sd-tag-close { font-size: 12px; color: #c0c4cc; }
+.sd-tag-close:hover { color: #f56c6c; }
 .header-cart {
   display: flex;
   align-items: center;

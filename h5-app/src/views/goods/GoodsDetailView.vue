@@ -33,13 +33,80 @@ const selectedPrice = computed(() => currentSku.value?.price ?? goods.value?.min
 const selectedStock = computed(() => currentSku.value?.stock ?? 0)
 const isLowStock = computed(() => selectedStock.value > 0 && selectedStock.value <= 5)
 
+// ---- SKU Matrix Selector ----
+const selectedSpecs = ref<Record<string, string>>({})
+
+// Extract unique spec dimensions and values from all SKUs
+const specMatrix = computed(() => {
+  if (!detail.value?.skus?.length) return []
+  const dims = new Map<string, Set<string>>()
+  for (const sku of detail.value.skus) {
+    for (const [dim, val] of Object.entries(sku.specs || {})) {
+      if (!dims.has(dim)) dims.set(dim, new Set())
+      dims.get(dim)!.add(val)
+    }
+  }
+  return [...dims].map(([name, values]) => ({ name, values: [...values] }))
+})
+
+// Find the SKU matching all current spec selections
+const matchedSku = computed(() => {
+  if (!detail.value?.skus?.length) return null
+  const specs = selectedSpecs.value
+  const dims = Object.keys(specs)
+  if (dims.length === 0) return null
+  return detail.value.skus.find(sku => {
+    if (!sku.specs) return false
+    return dims.every(d => sku.specs[d] === specs[d])
+  }) || null
+})
+
+// When selections change, update currentSku
+watch(matchedSku, (sku) => {
+  if (sku) {
+    currentSku.value = sku
+    mainImage.value = sku.main_image || goods.value?.main_image || ''
+    quantity.value = 1
+  } else if (Object.keys(selectedSpecs.value).length === 0) {
+    currentSku.value = null
+  }
+})
+
+function selectSpecValue(dim: string, val: string) {
+  if (selectedSpecs.value[dim] === val) {
+    // Deselect
+    const next = { ...selectedSpecs.value }
+    delete next[dim]
+    selectedSpecs.value = next
+  } else {
+    selectedSpecs.value = { ...selectedSpecs.value, [dim]: val }
+  }
+}
+
+// Check if a spec value is available (leads to any in-stock SKU given other selections)
+function isSpecValueAvailable(dim: string, val: string): boolean {
+  if (!detail.value?.skus?.length) return false
+  const current = { ...selectedSpecs.value, [dim]: val }
+  const dims = Object.keys(current)
+  return detail.value.skus.some(sku => {
+    if (!sku.specs) return false
+    if (sku.stock <= 0) return false
+    return dims.every(d => sku.specs[d] === current[d])
+  })
+}
+
 function selectSku(sku: GoodsDetailResponse['skus'][0]) {
   currentSku.value = sku
   mainImage.value = sku.main_image || goods.value?.main_image || ''
   quantity.value = 1
+  // Sync matrix selections
+  if (sku.specs) selectedSpecs.value = { ...sku.specs }
 }
 
 function selectThumb(img: string) { mainImage.value = img }
+
+// Reset selections when detail changes
+watch(() => detail.value, () => { selectedSpecs.value = {} })
 
 async function loadDetail() {
   error.value = ''; loading.value = true
@@ -171,12 +238,29 @@ async function handleCartAction(redirectToCart: boolean) {
               <span class="detail-sales">已售 {{ goods.sales }}</span>
             </div>
 
-            <!-- SKU Selector -->
-            <div class="detail-skus" v-if="detail?.skus?.length">
+            <!-- SKU Matrix Selector -->
+            <div class="detail-skus" v-if="specMatrix.length > 0">
               <div class="sku-label">规格</div>
-              <div class="sku-list">
+              <!-- Matrix: one row per spec dimension -->
+              <div v-for="dim in specMatrix" :key="dim.name" class="spec-dim">
+                <span class="spec-dim-name">{{ dim.name }}</span>
+                <div class="spec-values">
+                  <span
+                    v-for="val in dim.values"
+                    :key="val"
+                    class="spec-val"
+                    :class="{
+                      active: selectedSpecs[dim.name] === val,
+                      disabled: !isSpecValueAvailable(dim.name, val),
+                    }"
+                    @click="isSpecValueAvailable(dim.name, val) && selectSpecValue(dim.name, val)"
+                  >{{ val }}</span>
+                </div>
+              </div>
+              <!-- Flat list fallback for simple specs -->
+              <div class="sku-list" v-if="specMatrix.every(d => d.values.length <= 1)">
                 <div
-                  v-for="sku in detail.skus"
+                  v-for="sku in detail!.skus!"
                   :key="sku.id"
                   class="sku-item"
                   :class="{ active: currentSku?.id === sku.id, 'sku-oos': sku.stock === 0 }"
@@ -291,6 +375,14 @@ async function handleCartAction(redirectToCart: boolean) {
 .sku-stock { color: #c0c4cc; font-size: 11px; }
 .sku-stock-zero { color: #f56c6c; }
 .sku-oos { opacity: 0.45; cursor: not-allowed; }
+/* SKU Matrix */
+.spec-dim { margin-bottom: 10px; }
+.spec-dim-name { display: inline-block; width: 48px; font-size: 13px; color: #666; vertical-align: top; padding-top: 4px; }
+.spec-values { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+.spec-val { display: inline-block; padding: 6px 16px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 13px; cursor: pointer; transition: all .2s; user-select: none; }
+.spec-val:hover:not(.disabled) { border-color: #ff6b35; }
+.spec-val.active { border-color: #ff6b35; background: #fff7f0; color: #ff6b35; font-weight: 600; }
+.spec-val.disabled { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
 .detail-stock { margin-bottom: 12px; font-size: 13px; }
 .stock-ok { color: #67c23a; }
 .stock-low { color: #e6a23c; font-weight: 600; }
